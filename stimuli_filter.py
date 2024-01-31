@@ -20,6 +20,19 @@ class Filter(BaseFilter):
         return list(
             filter(lambda x: self.lower_bound <= x <= self.upper_bound, stimuli)
         )
+    
+class AG_WBFilter(BaseFilter):
+    def __init__(self, lower_bound: int, upper_bound: int):
+        self.lower_bound = lower_bound
+        self.upper_bound = upper_bound
+
+    def __call__(self, stimuli: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
+        filtered_stimuli = []
+        # for i in stimuli:
+        #     if(self.lower_bound <= i[0] <= self.upper_bound and self.lower_bound <= i[1] <= self.upper_bound):
+        #         filtered_stimuli.append(i)
+        filtered_stimuli = stimuli
+        return filtered_stimuli
 
 
 class ICFilter(BaseFilter):
@@ -28,13 +41,11 @@ class ICFilter(BaseFilter):
         self.upper_bound = upper_bound
 
     def __call__(self, updates: List[Tuple[int, int]]) -> List[List[Tuple[int, int]]]:
-        return [
-            list(
-                filter(
-                    lambda p: self.lower_bound <= p[0] <= self.upper_bound
-                    and self.lower_bound <= p[1] <= self.upper_bound
-                    and Encoding(p[1]).typed() is not None,
-                    updates,
-                )
+        return [list(
+            filter(
+                lambda p: self.lower_bound <= p[0] <= self.upper_bound
+                and self.lower_bound <= p[1] <= self.upper_bound
+                and Encoding(p[1]).typed() is not None,
+                updates,
             )
-        ]
+        )]

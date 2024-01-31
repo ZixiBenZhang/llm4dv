@@ -11,6 +11,12 @@ from stride_detector.shared_types import DUTState as SDDS
 from ibex_cpu.shared_types import IbexStateInfo as ICDS
 from ibex_cpu.shared_types import CoverageDatabase as ICCD
 
+#AGILE
+from agile_prefetcher.weight_bank.shared_types import CoverageDatabase as AG_WBCD
+from agile_prefetcher.weight_bank.shared_types import DUTState as AG_WBDS
+
+
+AG_WB_BOUND = 64
 
 class GlobalCoverageDatabase:
     def __init__(self, coverage=None):
@@ -32,6 +38,8 @@ class GlobalCoverageDatabase:
             self._coverage_database: IDCD
         elif isinstance(coverage, ICCD):
             self._coverage_database: ICCD
+        elif isinstance(coverage, AG_WBCD):
+            self._coverage_database: AG_WBCD
         elif coverage is None:
             pass
         else:
@@ -46,10 +54,24 @@ class GlobalCoverageDatabase:
             return self._get_coverage_plan_ID()
         elif isinstance(self._coverage_database, ICCD):
             return self._get_coverage_plan_IC()
+        elif isinstance(self._coverage_database, AG_WBCD):
+            return self._get_coverage_plan_AG_WBCD()
         else:
             raise TypeError(
                 f"coverage_database of type {type(self._coverage_database)} not supported."
             )
+
+    def _get_coverage_plan_AG_WBCD(self) -> Dict[str, int]:
+        coverage_plan = {}
+        for i in range(1, AG_WB_BOUND+1):
+            coverage_plan[f"out_{i}"] = self._coverage_database.out_features[i]
+            for j in range(1, int(AG_WB_BOUND/16+1)):
+                # print("i: " + str(i))
+                # print("j: " + str(j))
+                coverage_plan[f"combined_features_{i}_{j}"] = self._coverage_database.combined_features[i][j]
+        for i in range(1, int(AG_WB_BOUND/16+1)):
+            coverage_plan[f"in_{i}"] = self._coverage_database.in_features[i]
+        return coverage_plan
 
     def _get_coverage_plan_SD(self) -> Dict[str, int]:
         coverage_plan = {}
@@ -180,6 +202,13 @@ class GlobalCoverageDatabase:
                 return len(coverage)
             # TODO: Prioritise harder bins? not effective since delayed feedback
             return sum(map(lambda k: 2.5 if "raw_hazard" in k else 1, coverage))
+        elif isinstance(self._coverage_database, AG_WBCD):
+            coverage_plan = self._get_coverage_plan_AG_WBCD()
+            coverage = [k for (k, v) in coverage_plan.items() if v > 0]
+            if not prioritise_harder_bins:  # without prioritising harder bins
+                return len(coverage)
+            # TODO: Prioritise harder bins?
+            return len(coverage)
         else:
             raise TypeError(
                 f"coverage_database of type {type(self._coverage_database)} not supported."
@@ -205,6 +234,8 @@ class GlobalDUTState:
             self._dut_state: SDDS
         elif isinstance(dut_state, ICDS):
             self._dut_state: ICDS
+        elif isinstance(dut_state, AG_WBDS):
+            self._dut_state: AG_WBDS
         elif dut_state is None:
             pass
         else:
@@ -228,11 +259,7 @@ class GlobalDUTState:
     def get_last_instr(self):
         if isinstance(self._dut_state, ICDS):
             if self._dut_state.last_insn is None:
-                return (
-                    None
-                    if self.prev_valid_instr is None
-                    else hex(self.prev_valid_instr)
-                )
+                return None if self.prev_valid_instr is None else hex(self.prev_valid_instr)
             self.prev_valid_instr = self._dut_state.last_insn
             return hex(self._dut_state.last_insn)
         else:

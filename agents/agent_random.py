@@ -46,3 +46,15 @@ class RandomAgent4IC(RandomAgent):
         self.current_cycle += 1
 
         return [(addr, instr)]
+    
+class RandomAgent4AG_WB(RandomAgent):
+    def __init__(self, total_cycle=1000000, seed=0):
+        super().__init__(total_cycle=1000000, seed=0)
+
+    def generate_next_value(
+        self, dut_state: GlobalDUTState, coverage_database: GlobalCoverageDatabase
+    ):
+        in_features = random.getrandbits(6)
+        out_features = random.getrandbits(6)
+
+        return [(in_features, out_features)]
