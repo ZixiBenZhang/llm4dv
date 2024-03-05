@@ -11,7 +11,6 @@ import numpy as np
 
 directory = os.path.dirname(os.path.abspath("__file__"))
 sys.path.insert(0, os.path.dirname("/".join(directory.split("/")[:-1])))
-# print(sys.path)
 
 from agile_prefetcher.weight_bank.shared_types import *
 from global_shared_types import *
@@ -19,8 +18,8 @@ from agents.agent_random import *
 from agents.agent_LLM import *
 from prompt_generators.prompt_generator_template_AG_WB import *
 from models.llm_gpt import ChatGPT
-from stimuli_extractor import AG_WBExtractor
-from stimuli_filter import AG_WBFilter
+from stimuli_extractor import UniversalExtractor
+from stimuli_filter import UniversalFilter
 from loggers.logger_csv import CSVLogger
 from loggers.logger_txt import TXTLogger
 
@@ -92,8 +91,11 @@ def main():
 
     # build components
     prompt_generator = TemplatePromptGeneratorAG_WB(
-        bin_descr_path="../../examples_AG_WB/bins_description.txt",#!!!!!
-        sampling_missed_bins_method="RANDOM",#!!!!!
+        bin_descr_path="../../examples_AG_WB/bins_description.txt",
+        dut_code_path="prefetcher_weight_bank.sv",
+        tb_code_path="agile_prefetcher_weight_bank_cocotb.py",
+        sampling_missed_bins_method="RANDOM",
+        code_summary_type=1
     )
 
     # stimulus_generator = Llama2(system_prompt=prompt_generator.generate_system_prompt())
@@ -104,8 +106,8 @@ def main():
         compress_msg_algo="best 3",
         prioritise_harder_bins=False,
     )
-    extractor = AG_WBExtractor()
-    stimulus_filter = AG_WBFilter(1, 1024)
+    extractor = UniversalExtractor(2)
+    stimulus_filter = UniversalFilter([[1,64],[1,64]])
 
     # build loggers
     prefix = "./logs/"
@@ -126,8 +128,6 @@ def main():
     )
     print("Agent successfully built\n")
 
-    # agent = RandomAgent(3000000)
-
     # run test
     g_dut_state = GlobalDUTState()
     g_coverage = GlobalCoverageDatabase()
@@ -143,7 +143,7 @@ def main():
             g_dut_state.set(dut_state)
             g_coverage.set(coverage)
 
-        coverage = stimulus_sender.send_stimulus(None)
+        dut_state, coverage = stimulus_sender.send_stimulus(Stimulus(value=[1,1], finish=True))
         # coverage.output_coverage()
 
         g_coverage.set(coverage)
@@ -155,12 +155,6 @@ def main():
             f"Finished with hits: {coverage_plan}\n"
             f"Coverage: {g_coverage.get_coverage_rate()}\n"
         )
-        # print(
-        #     f"Finished at dialog #{agent.dialog_index}, message #{agent.msg_index}, \n"
-        #     f"with total {agent.total_msg_cnt} messages \n"
-        #     f"Hits: {coverage_plan}, \n"
-        #     f"Coverage rate: {g_coverage.get_coverage_rate()}\n"
-        # )
 
 
 if __name__ == "__main__":

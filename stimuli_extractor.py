@@ -33,6 +33,22 @@ class DumbExtractor(BaseExtractor):
     def reset(self):
         pass
 
+class AG_FTExtractor(BaseExtractor):
+    def __init__(self):
+        super().__init__()
+    def __call__(self, text: str) -> List[Tuple[int, int]]:
+        print(text)
+        stimuli = []
+        stim_str = text.replace("(", "").replace(")", "").replace('"', "").replace("'", "").replace("[", "").replace(" ", "").replace("]", "").replace("\n", "").split(",")
+        i = 0
+        while (i+3 < len(stim_str)-1):
+            stimuli.append([str(stim_str[i]), int(stim_str[i+1]), int(stim_str[i+2]), int(stim_str[i+3])])
+            i += 4
+        return stimuli
+    
+    def reset(self):
+        pass
+
 class AG_WBExtractor(BaseExtractor):
     def __init__(self):
         super().__init__()
@@ -67,5 +83,25 @@ class ICExtractor(BaseExtractor):
         )
         return updates
 
+    def reset(self):
+        pass
+
+class UniversalExtractor(BaseExtractor):
+    def __init__(self, stim_seq_length):
+        super().__init__()
+        self.stim_seq_length = stim_seq_length
+
+    def __call__(self, text):
+        stimuli = []
+        stim_str = text.replace("(", "").replace(")", "").replace('"', "").replace("'", "").replace("[", "").replace(" ", "").replace("]", "").replace("\n", "").split(",")
+        i = 0
+        while ((i + self.stim_seq_length - 1) < len(stim_str)-1):
+            current_stimulus = []
+            for j  in range(self.stim_seq_length):
+                current_stimulus.append(stim_str[i+j])
+            stimuli.append(current_stimulus)
+            i += self.stim_seq_length
+        return stimuli
+    
     def reset(self):
         pass

@@ -4,10 +4,10 @@ BOUND = 64
 class TemplatePromptGeneratorAG_WB(TemplatePromptGenerator):
     def __init__(
         self,
-        dut_code_path: str = "../examples_SD/dut_code.txt",
-        tb_code_path: str = "../examples_SD/tb_code.txt",
-        bin_descr_path: str = "../examples_SD/bins_description.txt",
-        code_summary_type: int = 0,  # 0: no code, 1: code, 2: summary
+        dut_code_path: str = "",
+        tb_code_path: str = "",
+        bin_descr_path: str = "",
+        code_summary_type: int = 0,  # 0: no code, 1: code
         sampling_missed_bins_method: Union[str, None] = None,
     ):
         super().__init__(
@@ -28,11 +28,11 @@ class TemplatePromptGeneratorAG_WB(TemplatePromptGenerator):
 
     def _load_introduction(self) -> str:
         if self.code_summary_type == 1:
-            return ( #!!!!!!!
-                "You will receive code of a RISC-V instruction decoder and a testbench for it, "
+            return (
+                "You will receive code of a \"weight bank\" and a testbench for it, "
                 "as well as a description of bins (i.e. test cases). "
-                "Then, you are going to generate a list of 32-bit instructions (i.e. hex integers "
-                "between 0x0 and 0xffffffff) to cover the test cases.\n"
+                "The purpose of this device is to load data (weights) from RAM into a FIFO, then output them diagonally."
+                "Then, you are going to generate a list of integer pairs to cover these test cases.\n"
             )
         elif self.code_summary_type == 0:
             return (
@@ -42,7 +42,6 @@ class TemplatePromptGeneratorAG_WB(TemplatePromptGenerator):
                 "Then, you are going to generate a list of integer pairs to cover these test cases.\n"
             )
         else:
-            # TODO: intro for code summaries
             raise NotImplementedError
 
     def _load_code_summary(self, dut_code_path, tb_code_path) -> str:
@@ -131,9 +130,9 @@ class TemplatePromptGeneratorAG_WB(TemplatePromptGenerator):
             for i in range(1, BOUND+1)
         }
         combined_difference = {
-            f"combined_features_{i}_{j}": f"- {j*16} units of data loaded on each row is unreached, and {i} number of rows loaded with valid data,"
-            for i in range(1, BOUND+1)
-            for j in range(1, int(BOUND/16+1))
+            f"combined_features_{i}_{j}": f"- {i*16} units of data loaded on each row is unreached, and {j} number of rows loaded with valid data,"
+            for i in range(1, int(BOUND/16+1))
+            for j in range(1, BOUND+1)
         }
 
         coverage_difference_template = {

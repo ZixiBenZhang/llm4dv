@@ -35,6 +35,3 @@ class CoverageDatabase:
     # Flatten all coverage bins into a single vector (python list of integers)
     def get_coverage_vector(self):
         return (self.in_features + self.out_features)
-
-    # def get_coverage_bool_vector(self):
-    #     return [1 if x > 0 else 0 for x in self.get_coverage_vector()]
