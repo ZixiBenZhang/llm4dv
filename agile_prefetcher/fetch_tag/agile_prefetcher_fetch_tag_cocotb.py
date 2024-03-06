@@ -21,8 +21,6 @@ sys.path.insert(0, os.path.dirname("/".join(directory.split("/")[:-1])))
 from agile_prefetcher.fetch_tag.shared_types import *
 from shared_helpers.cocotb_helpers import *
 
-AG_WB_BOUND = 64
-
 class CoverageMonitor:
 
     def __init__(self):
