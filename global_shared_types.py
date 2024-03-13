@@ -21,6 +21,10 @@ from agile_prefetcher.fetch_tag.shared_types import DUTState as AG_FTDS
 from agile_prefetcher.prefetcher.shared_types import CoverageDatabase as AG_PRCD
 from agile_prefetcher.prefetcher.shared_types import DUTState as AG_PRDS
 
+#ASYNC FIFO
+from async_fifo.shared_types import CoverageDatabase as AFCD
+from async_fifo.shared_types import DUTState as AFDS
+
 AG_WB_BOUND = 64
 
 class GlobalCoverageDatabase:
@@ -49,6 +53,8 @@ class GlobalCoverageDatabase:
             self._coverage_database: AG_FTCD
         elif isinstance(coverage, AG_WBCD):
             self._coverage_database: AG_WBCD
+        elif isinstance(coverage, AFCD):
+            self._coverage_database: AFCD
         elif coverage is None:
             pass
         else:
@@ -69,10 +75,16 @@ class GlobalCoverageDatabase:
             return self._get_coverage_plan_AG_FTCD()
         elif isinstance(self._coverage_database, AG_PRCD):
             return self._get_coverage_plan_AG_PRCD()
+        elif isinstance(self._coverage_database, AFCD):
+            return self._get_coverage_plan_AFCD()
         else:
             raise TypeError(
                 f"coverage_database of type {type(self._coverage_database)} not supported."
             )
+        
+    def _get_coverage_plan_AFCD(self) -> Dict[str, int]:
+        coverage_plan = self._coverage_database.misc_bins
+        return coverage_plan
 
     def _get_coverage_plan_AG_PRCD(self) -> Dict[str, int]:
         coverage_plan = self._coverage_database.misc_bins
@@ -242,6 +254,13 @@ class GlobalCoverageDatabase:
                 return len(coverage)
             # TODO: Prioritise harder bins?
             return len(coverage)
+        elif isinstance(self._coverage_database, AFCD):
+            coverage_plan = self._get_coverage_plan_AFCD()
+            coverage = [k for (k, v) in coverage_plan.items() if v > 0]
+            if not prioritise_harder_bins:  # without prioritising harder bins
+                return len(coverage)
+            # TODO: Prioritise harder bins?
+            return len(coverage)
         else:
             raise TypeError(
                 f"coverage_database of type {type(self._coverage_database)} not supported."
@@ -273,6 +292,8 @@ class GlobalDUTState:
             self._dut_state: AG_FTDS
         elif isinstance(dut_state, AG_PRDS):
             self._dut_state: AG_PRDS
+        elif isinstance(dut_state, AFDS):
+            self._dut_state: AFDS
         elif dut_state is None:
             pass
         else:
