@@ -1,0 +1,1233 @@
+Model,openai/gpt-3.5-turbo-16k,SYSTEM,"Please provide a list of lists, in the format: [[int, int, int], [int, int, int], ...]In each sublist of three integers:The first integer should be between 1 and 1000.The second integer should be between 0 and 1.The third integer should be between 0 and 1.Example: [[30, 1, 0], [10, 0, 0]]Do NOT provide any comments, extra remarks, context - only provide a list",temperature,0.4,top_p,1,Prompter,TemplatePromptGeneratorAF,Extractor,UniversalExtractor
+Total Message#,Dialog #,Message #,Total Token Cnt,USER,Input Token Cnt,ASSISTANT,Output Token Cnt,Action,Coverage Rate,Coverage Plan
+1,1,1,2492,"""You will receive code of a DUT and a testbench for it, as well as a description of bins (i.e. test cases). 
+----------
+I have a device under test (DUT). Here's the SystemVerilog code of the DUT:
+------
+DUT CODE
+// distributed under the mit license
+// https://opensource.org/licenses/mit-license.php
+
+`timescale 1 ns / 1 ps
+`default_nettype none
+
+module async_fifo
+
+    #(
+        parameter DSIZE = 8,
+        parameter ASIZE = 4,
+        parameter FALLTHROUGH = ""TRUE"" // First word fall-through without latency
+    )(
+        input  wire             wclk,
+        input  wire             wrst_n,
+        input  wire             winc,
+        input  wire [DSIZE-1:0] wdata,
+        output wire             wfull,
+        output wire             awfull,
+        input  wire             rclk,
+        input  wire             rrst_n,
+        input  wire             rinc,
+        output wire [DSIZE-1:0] rdata,
+        output wire             rempty,
+        output wire             arempty
+    );
+
+    wire [ASIZE-1:0] waddr, raddr;
+    wire [ASIZE  :0] wptr, rptr, wq2_rptr, rq2_wptr;
+
+    // The module synchronizing the read point
+    // from read to write domain
+    sync_r2w
+    #(ASIZE)
+    sync_r2w (
+    .wq2_rptr (wq2_rptr),
+    .rptr     (rptr),
+    .wclk     (wclk),
+    .wrst_n   (wrst_n)
+    );
+
+    // The module synchronizing the write point
+    // from write to read domain
+    sync_w2r
+    #(ASIZE)
+    sync_w2r (
+    .rq2_wptr (rq2_wptr),
+    .wptr     (wptr),
+    .rclk     (rclk),
+    .rrst_n   (rrst_n)
+    );
+
+    // The module handling the write requests
+    wptr_full
+    #(ASIZE)
+    wptr_full (
+    .awfull   (awfull),
+    .wfull    (wfull),
+    .waddr    (waddr),
+    .wptr     (wptr),
+    .wq2_rptr (wq2_rptr),
+    .winc     (winc),
+    .wclk     (wclk),
+    .wrst_n   (wrst_n)
+    );
+
+    // The DC-RAM
+    fifomem
+    #(DSIZE, ASIZE, FALLTHROUGH)
+    fifomem (
+    .rclken (rinc),
+    .rclk   (rclk),
+    .rdata  (rdata),
+    .wdata  (wdata),
+    .waddr  (waddr),
+    .raddr  (raddr),
+    .wclken (winc),
+    .wfull  (wfull),
+    .wclk   (wclk)
+    );
+
+    // The module handling read requests
+    rptr_empty
+    #(ASIZE)
+    rptr_empty (
+    .arempty  (arempty),
+    .rempty   (rempty),
+    .raddr    (raddr),
+    .rptr     (rptr),
+    .rq2_wptr (rq2_wptr),
+    .rinc     (rinc),
+    .rclk     (rclk),
+    .rrst_n   (rrst_n)
+    );
+
+`ifdef FORMAL
+    integer rptr_prev;
+    logic rempty_prev;
+    logic rrst_n_prev;
+
+    logic [3:0] cycle_count_r;
+    logic [3:0] cycle_count_w;
+
+    initial begin 
+        assume(~rrst_n)
+        assume(~wrst_n)
+        cycle_count_r <= 0;
+        cycle_count_w <= 0;
+    end
+
+    always @(posedge rclk) begin
+        if (cycle_count_r < 10)
+            cycle_count_r <= cycle_count_r + 1;
+    end
+    always @(posedge wclk) begin
+        if (cycle_count_w < 10)
+            cycle_count_w <= cycle_count_w + 1;
+    end
+
+    
+    assume property ( @(posedge rclk or posedge wclk) ((cycle_count_r < 5 || cycle_count_w < 5)  |-> (~rrst_n && ~wrst_n)));
+    assume property ( @(posedge rclk or posedge wclk) ((cycle_count_r > 4 && cycle_count_w > 4) |-> (rrst_n && wrst_n)));
+
+    // read side
+    always @(posedge rclk) begin
+        if (rrst_n) begin
+            rptr_prev <= rptr;
+            rempty_prev <= rempty;
+            rrst_n_prev <= rrst_n;
+
+            empty: cover (rempty & ~(rempty_prev));
+            full_read_wrap: cover (rptr == 0 & ~(rptr_prev == 1 | rptr_prev == 0 | ~(rrst_n_prev)));
+            gray_read_wrap: cover (rptr[-1] != rptr_prev[-1]);
+            underflow: cover (rinc & rempty);
+            read_while_write: cover (rinc & winc);
+        end
+    end
+
+    integer wptr_prev;
+    logic wfull_prev;
+    logic wrst_n_prev;
+
+    // write side
+    always @(posedge wclk) begin
+        if(wrst_n) begin
+            wptr_prev <= wptr;
+            wfull_prev <= wfull;
+            wrst_n_prev <= wrst_n;
+
+            full: cover (wfull & ~(wfull_prev));
+            full_write_wrap: cover (wptr == 0 & ~(wptr_prev == 1 | wptr_prev == 0 | ~(wrst_n_prev)));
+            gray_write_wrap: cover (wptr[-1] != wptr_prev[-1]);
+            overflow: cover (winc & wfull);
+            write_while_read: cover (rinc & winc);
+        end
+    end
+`endif
+endmodule
+
+`resetall
+
+------
+Now, we want to test the DUT with a list of commands as its input. We want the input to cover the bins (i.e. test cases) that we care about. Here's the description of the bins that we care about:
+------
+BINS DESCRIPTION
+- You provide a list of lists, in the format: [int, int, int]. The internal lists will be interpreted as sequential instructions for a DUT.
+- The DUT is an asynchronous fifo used for clock domain crossings. The pointers are in gray code, and the MSB of the pointers indicate a ""wrap"", used to determine whether the FIFO is empty or full.
+- The read clock has a period of 13ns, the write clock has a period of 10ns.
+- The three integers in each command will be interpreted as follows:
+    - First integer: how long to ""hold"" the current command in nanoseconds. The value should be between 1 and 1000.
+    - Second integer: if it is 1, read operations occur. The value should be 0 or 1.
+    - Third integer: if it is 1, write operations occur. The value should be 0 or 1.
+- You need to cover each of the following bins with your commands:
+---
+    - full_read_wrap: the read pointer wraps to 0.
+    - gray_read_wrap: the MSB of the read pointer toggles.
+    - underflow: a read operation is requested while the FIFO is empty
+    - empty: the FIFO is empty
+    - read_while_write: on read clock edge a read operation is performed, while a write operation is being requested as well
+    - full_write_wrap: the write pointer wraps to 0.
+    - gray_write_wrap: the MSB of the write pointer toggles.
+    - overflow: a write operation is requested while the FIFO is full
+    - full: the FIFO is full
+    - write_while_read: on write clock edge a write operation is performed, while a read operation is being requested as well
+---
+------
+
+----------
+Following the bins description, and refer to the programs, generate a list of integer pairs which covers the described bins as much as you can.
+""",1892,"""[[10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1,""",600,none,4,"{'gray_read_wrap': 1, 'full_write_wrap': 1, 'gray_write_wrap': 2, 'underflow': 3}"
+2,1,2,3246,"""The values you provided failed to cover all the bins.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases)
+Here are some of the unreached bins:
+------
+UNREACHED BINS
+the read pointer wraps to 0.
+a write operation is requested while the FIFO is full.
+the FIFO is full.
+the FIFO is empty.
+on read clock edge a read operation is performed, while a write operation is being requested as well.
+on write clock edge a write operation is performed, while a read operation is being requested as well.
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.""",2646,"""[[10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0, 0], [10, 0,""",600,none,4,"{'gray_read_wrap': 1, 'full_write_wrap': 1, 'gray_write_wrap': 2, 'underflow': 3}"
+3,1,3,4018,"""The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of commands to cover the unreached bins (i.e. test cases)
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the read pointer wraps to 0.
+a write operation is requested while the FIFO is full.
+the FIFO is full.
+the FIFO is empty.
+on read clock edge a read operation is performed, while a write operation is being requested as well.
+on write clock edge a write operation is performed, while a read operation is being requested as well.
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.""",3418,"""[[10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1,""",600,none,5,"{'full_read_wrap': 1, 'gray_read_wrap': 3, 'full_write_wrap': 2, 'gray_write_wrap': 4, 'underflow': 3}"
+4,1,4,4764,"""The values you provided failed to cover all the bins.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases)
+Here are some of the unreached bins:
+------
+UNREACHED BINS
+a write operation is requested while the FIFO is full.
+the FIFO is full.
+the FIFO is empty.
+on read clock edge a read operation is performed, while a write operation is being requested as well.
+on write clock edge a write operation is performed, while a read operation is being requested as well.
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.""",4164,"""[[10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1,""",600,none,7,"{'full_read_wrap': 2, 'gray_read_wrap': 4, 'full_write_wrap': 2, 'gray_write_wrap': 5, 'underflow': 3, 'overflow': 6, 'full': 6}"
+5,1,5,5494,"""The values you provided failed to cover all the bins.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases)
+Here are some of the unreached bins:
+------
+UNREACHED BINS
+the FIFO is empty.
+on read clock edge a read operation is performed, while a write operation is being requested as well.
+on write clock edge a write operation is performed, while a read operation is being requested as well.
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.""",4894,"""[[10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1,""",600,none,7,"{'full_read_wrap': 3, 'gray_read_wrap': 6, 'full_write_wrap': 3, 'gray_write_wrap': 7, 'underflow': 3, 'overflow': 13, 'full': 14}"
+6,1,6,5488,"""The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of commands to cover the unreached bins (i.e. test cases)
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the FIFO is empty.
+on read clock edge a read operation is performed, while a write operation is being requested as well.
+on write clock edge a write operation is performed, while a read operation is being requested as well.
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.""",4888,"""[[10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1,""",600,none,7,"{'full_read_wrap': 4, 'gray_read_wrap': 8, 'full_write_wrap': 4, 'gray_write_wrap': 9, 'underflow': 3, 'overflow': 22, 'full': 22}"
+7,1,7,5472,"""The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of commands to cover the unreached bins (i.e. test cases)
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the FIFO is empty.
+on read clock edge a read operation is performed, while a write operation is being requested as well.
+on write clock edge a write operation is performed, while a read operation is being requested as well.
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.""",4872,"""[[10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1,""",600,none,7,"{'full_read_wrap': 4, 'gray_read_wrap': 9, 'full_write_wrap': 5, 'gray_write_wrap': 10, 'underflow': 3, 'overflow': 30, 'full': 31}"
+8,1,8,5466,"""The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of commands to cover the unreached bins (i.e. test cases)
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the FIFO is empty.
+on read clock edge a read operation is performed, while a write operation is being requested as well.
+on write clock edge a write operation is performed, while a read operation is being requested as well.
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.""",4866,"""[[10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1,""",600,none,7,"{'full_read_wrap': 5, 'gray_read_wrap': 11, 'full_write_wrap': 6, 'gray_write_wrap': 12, 'underflow': 3, 'overflow': 40, 'full': 40}"
+9,1,9,5488,"""The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of commands to cover the unreached bins (i.e. test cases)
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the FIFO is empty.
+on read clock edge a read operation is performed, while a write operation is being requested as well.
+on write clock edge a write operation is performed, while a read operation is being requested as well.
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.""",4888,"""[[10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1,""",600,reset,7,"{'full_read_wrap': 6, 'gray_read_wrap': 12, 'full_write_wrap': 6, 'gray_write_wrap': 13, 'underflow': 3, 'overflow': 49, 'full': 50}"
+10,2,1,2492,"""You will receive code of a DUT and a testbench for it, as well as a description of bins (i.e. test cases). 
+----------
+I have a device under test (DUT). Here's the SystemVerilog code of the DUT:
+------
+DUT CODE
+// distributed under the mit license
+// https://opensource.org/licenses/mit-license.php
+
+`timescale 1 ns / 1 ps
+`default_nettype none
+
+module async_fifo
+
+    #(
+        parameter DSIZE = 8,
+        parameter ASIZE = 4,
+        parameter FALLTHROUGH = ""TRUE"" // First word fall-through without latency
+    )(
+        input  wire             wclk,
+        input  wire             wrst_n,
+        input  wire             winc,
+        input  wire [DSIZE-1:0] wdata,
+        output wire             wfull,
+        output wire             awfull,
+        input  wire             rclk,
+        input  wire             rrst_n,
+        input  wire             rinc,
+        output wire [DSIZE-1:0] rdata,
+        output wire             rempty,
+        output wire             arempty
+    );
+
+    wire [ASIZE-1:0] waddr, raddr;
+    wire [ASIZE  :0] wptr, rptr, wq2_rptr, rq2_wptr;
+
+    // The module synchronizing the read point
+    // from read to write domain
+    sync_r2w
+    #(ASIZE)
+    sync_r2w (
+    .wq2_rptr (wq2_rptr),
+    .rptr     (rptr),
+    .wclk     (wclk),
+    .wrst_n   (wrst_n)
+    );
+
+    // The module synchronizing the write point
+    // from write to read domain
+    sync_w2r
+    #(ASIZE)
+    sync_w2r (
+    .rq2_wptr (rq2_wptr),
+    .wptr     (wptr),
+    .rclk     (rclk),
+    .rrst_n   (rrst_n)
+    );
+
+    // The module handling the write requests
+    wptr_full
+    #(ASIZE)
+    wptr_full (
+    .awfull   (awfull),
+    .wfull    (wfull),
+    .waddr    (waddr),
+    .wptr     (wptr),
+    .wq2_rptr (wq2_rptr),
+    .winc     (winc),
+    .wclk     (wclk),
+    .wrst_n   (wrst_n)
+    );
+
+    // The DC-RAM
+    fifomem
+    #(DSIZE, ASIZE, FALLTHROUGH)
+    fifomem (
+    .rclken (rinc),
+    .rclk   (rclk),
+    .rdata  (rdata),
+    .wdata  (wdata),
+    .waddr  (waddr),
+    .raddr  (raddr),
+    .wclken (winc),
+    .wfull  (wfull),
+    .wclk   (wclk)
+    );
+
+    // The module handling read requests
+    rptr_empty
+    #(ASIZE)
+    rptr_empty (
+    .arempty  (arempty),
+    .rempty   (rempty),
+    .raddr    (raddr),
+    .rptr     (rptr),
+    .rq2_wptr (rq2_wptr),
+    .rinc     (rinc),
+    .rclk     (rclk),
+    .rrst_n   (rrst_n)
+    );
+
+`ifdef FORMAL
+    integer rptr_prev;
+    logic rempty_prev;
+    logic rrst_n_prev;
+
+    logic [3:0] cycle_count_r;
+    logic [3:0] cycle_count_w;
+
+    initial begin 
+        assume(~rrst_n)
+        assume(~wrst_n)
+        cycle_count_r <= 0;
+        cycle_count_w <= 0;
+    end
+
+    always @(posedge rclk) begin
+        if (cycle_count_r < 10)
+            cycle_count_r <= cycle_count_r + 1;
+    end
+    always @(posedge wclk) begin
+        if (cycle_count_w < 10)
+            cycle_count_w <= cycle_count_w + 1;
+    end
+
+    
+    assume property ( @(posedge rclk or posedge wclk) ((cycle_count_r < 5 || cycle_count_w < 5)  |-> (~rrst_n && ~wrst_n)));
+    assume property ( @(posedge rclk or posedge wclk) ((cycle_count_r > 4 && cycle_count_w > 4) |-> (rrst_n && wrst_n)));
+
+    // read side
+    always @(posedge rclk) begin
+        if (rrst_n) begin
+            rptr_prev <= rptr;
+            rempty_prev <= rempty;
+            rrst_n_prev <= rrst_n;
+
+            empty: cover (rempty & ~(rempty_prev));
+            full_read_wrap: cover (rptr == 0 & ~(rptr_prev == 1 | rptr_prev == 0 | ~(rrst_n_prev)));
+            gray_read_wrap: cover (rptr[-1] != rptr_prev[-1]);
+            underflow: cover (rinc & rempty);
+            read_while_write: cover (rinc & winc);
+        end
+    end
+
+    integer wptr_prev;
+    logic wfull_prev;
+    logic wrst_n_prev;
+
+    // write side
+    always @(posedge wclk) begin
+        if(wrst_n) begin
+            wptr_prev <= wptr;
+            wfull_prev <= wfull;
+            wrst_n_prev <= wrst_n;
+
+            full: cover (wfull & ~(wfull_prev));
+            full_write_wrap: cover (wptr == 0 & ~(wptr_prev == 1 | wptr_prev == 0 | ~(wrst_n_prev)));
+            gray_write_wrap: cover (wptr[-1] != wptr_prev[-1]);
+            overflow: cover (winc & wfull);
+            write_while_read: cover (rinc & winc);
+        end
+    end
+`endif
+endmodule
+
+`resetall
+
+------
+Now, we want to test the DUT with a list of commands as its input. We want the input to cover the bins (i.e. test cases) that we care about. Here's the description of the bins that we care about:
+------
+BINS DESCRIPTION
+- You provide a list of lists, in the format: [int, int, int]. The internal lists will be interpreted as sequential instructions for a DUT.
+- The DUT is an asynchronous fifo used for clock domain crossings. The pointers are in gray code, and the MSB of the pointers indicate a ""wrap"", used to determine whether the FIFO is empty or full.
+- The read clock has a period of 13ns, the write clock has a period of 10ns.
+- The three integers in each command will be interpreted as follows:
+    - First integer: how long to ""hold"" the current command in nanoseconds. The value should be between 1 and 1000.
+    - Second integer: if it is 1, read operations occur. The value should be 0 or 1.
+    - Third integer: if it is 1, write operations occur. The value should be 0 or 1.
+- You need to cover each of the following bins with your commands:
+---
+    - full_read_wrap: the read pointer wraps to 0.
+    - gray_read_wrap: the MSB of the read pointer toggles.
+    - underflow: a read operation is requested while the FIFO is empty
+    - empty: the FIFO is empty
+    - read_while_write: on read clock edge a read operation is performed, while a write operation is being requested as well
+    - full_write_wrap: the write pointer wraps to 0.
+    - gray_write_wrap: the MSB of the write pointer toggles.
+    - overflow: a write operation is requested while the FIFO is full
+    - full: the FIFO is full
+    - write_while_read: on write clock edge a write operation is performed, while a read operation is being requested as well
+---
+------
+
+----------
+Following the bins description, and refer to the programs, generate a list of integer pairs which covers the described bins as much as you can.
+""",1892,"""[[10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1,""",600,none,9,"{'full_read_wrap': 7, 'gray_read_wrap': 14, 'full_write_wrap': 7, 'gray_write_wrap': 15, 'underflow': 3, 'overflow': 68, 'full': 66, 'read_while_write': 16, 'write_while_read': 17}"
+11,2,2,3182,"""The values you provided failed to cover all the bins.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases)
+Here are some of the unreached bins:
+------
+UNREACHED BINS
+the FIFO is empty.
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.""",2582,"""[[10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1,""",600,none,9,"{'full_read_wrap': 8, 'gray_read_wrap': 16, 'full_write_wrap': 8, 'gray_write_wrap': 17, 'underflow': 3, 'overflow': 78, 'full': 74, 'read_while_write': 31, 'write_while_read': 34}"
+12,2,3,3890,"""The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of commands to cover the unreached bins (i.e. test cases)
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the FIFO is empty.
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.""",3290,"""[[10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1,""",600,none,9,"{'full_read_wrap': 9, 'gray_read_wrap': 18, 'full_write_wrap': 9, 'gray_write_wrap': 19, 'underflow': 3, 'overflow': 95, 'full': 88, 'read_while_write': 47, 'write_while_read': 51}"
+13,2,4,4598,"""The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of commands to cover the unreached bins (i.e. test cases)
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the FIFO is empty.
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.""",3998,"""[[10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1,""",600,none,9,"{'full_read_wrap': 10, 'gray_read_wrap': 20, 'full_write_wrap': 10, 'gray_write_wrap': 21, 'underflow': 3, 'overflow': 105, 'full': 96, 'read_while_write': 61, 'write_while_read': 68}"
+14,2,5,5270,"""The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of commands to cover the unreached bins (i.e. test cases)
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the FIFO is empty.
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.""",4706,"""[[10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1,""",564,none,9,"{'full_read_wrap': 11, 'gray_read_wrap': 22, 'full_write_wrap': 11, 'gray_write_wrap': 23, 'underflow': 3, 'overflow': 124, 'full': 111, 'read_while_write': 74, 'write_while_read': 84}"
+15,2,6,4719,"""The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of commands to cover the unreached bins (i.e. test cases)
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the FIFO is empty.
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.""",4710,"""[[10, 0, 0]]""",9,none,9,"{'full_read_wrap': 11, 'gray_read_wrap': 22, 'full_write_wrap': 11, 'gray_write_wrap': 23, 'underflow': 3, 'overflow': 124, 'full': 111, 'read_while_write': 74, 'write_while_read': 84}"
+16,2,7,5410,"""The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of commands to cover the unreached bins (i.e. test cases)
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the FIFO is empty.
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.""",4810,"""[[10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1,""",600,reset,9,"{'full_read_wrap': 11, 'gray_read_wrap': 23, 'full_write_wrap': 12, 'gray_write_wrap': 24, 'underflow': 3, 'overflow': 131, 'full': 119, 'read_while_write': 74, 'write_while_read': 84}"
+17,3,1,2492,"""You will receive code of a DUT and a testbench for it, as well as a description of bins (i.e. test cases). 
+----------
+I have a device under test (DUT). Here's the SystemVerilog code of the DUT:
+------
+DUT CODE
+// distributed under the mit license
+// https://opensource.org/licenses/mit-license.php
+
+`timescale 1 ns / 1 ps
+`default_nettype none
+
+module async_fifo
+
+    #(
+        parameter DSIZE = 8,
+        parameter ASIZE = 4,
+        parameter FALLTHROUGH = ""TRUE"" // First word fall-through without latency
+    )(
+        input  wire             wclk,
+        input  wire             wrst_n,
+        input  wire             winc,
+        input  wire [DSIZE-1:0] wdata,
+        output wire             wfull,
+        output wire             awfull,
+        input  wire             rclk,
+        input  wire             rrst_n,
+        input  wire             rinc,
+        output wire [DSIZE-1:0] rdata,
+        output wire             rempty,
+        output wire             arempty
+    );
+
+    wire [ASIZE-1:0] waddr, raddr;
+    wire [ASIZE  :0] wptr, rptr, wq2_rptr, rq2_wptr;
+
+    // The module synchronizing the read point
+    // from read to write domain
+    sync_r2w
+    #(ASIZE)
+    sync_r2w (
+    .wq2_rptr (wq2_rptr),
+    .rptr     (rptr),
+    .wclk     (wclk),
+    .wrst_n   (wrst_n)
+    );
+
+    // The module synchronizing the write point
+    // from write to read domain
+    sync_w2r
+    #(ASIZE)
+    sync_w2r (
+    .rq2_wptr (rq2_wptr),
+    .wptr     (wptr),
+    .rclk     (rclk),
+    .rrst_n   (rrst_n)
+    );
+
+    // The module handling the write requests
+    wptr_full
+    #(ASIZE)
+    wptr_full (
+    .awfull   (awfull),
+    .wfull    (wfull),
+    .waddr    (waddr),
+    .wptr     (wptr),
+    .wq2_rptr (wq2_rptr),
+    .winc     (winc),
+    .wclk     (wclk),
+    .wrst_n   (wrst_n)
+    );
+
+    // The DC-RAM
+    fifomem
+    #(DSIZE, ASIZE, FALLTHROUGH)
+    fifomem (
+    .rclken (rinc),
+    .rclk   (rclk),
+    .rdata  (rdata),
+    .wdata  (wdata),
+    .waddr  (waddr),
+    .raddr  (raddr),
+    .wclken (winc),
+    .wfull  (wfull),
+    .wclk   (wclk)
+    );
+
+    // The module handling read requests
+    rptr_empty
+    #(ASIZE)
+    rptr_empty (
+    .arempty  (arempty),
+    .rempty   (rempty),
+    .raddr    (raddr),
+    .rptr     (rptr),
+    .rq2_wptr (rq2_wptr),
+    .rinc     (rinc),
+    .rclk     (rclk),
+    .rrst_n   (rrst_n)
+    );
+
+`ifdef FORMAL
+    integer rptr_prev;
+    logic rempty_prev;
+    logic rrst_n_prev;
+
+    logic [3:0] cycle_count_r;
+    logic [3:0] cycle_count_w;
+
+    initial begin 
+        assume(~rrst_n)
+        assume(~wrst_n)
+        cycle_count_r <= 0;
+        cycle_count_w <= 0;
+    end
+
+    always @(posedge rclk) begin
+        if (cycle_count_r < 10)
+            cycle_count_r <= cycle_count_r + 1;
+    end
+    always @(posedge wclk) begin
+        if (cycle_count_w < 10)
+            cycle_count_w <= cycle_count_w + 1;
+    end
+
+    
+    assume property ( @(posedge rclk or posedge wclk) ((cycle_count_r < 5 || cycle_count_w < 5)  |-> (~rrst_n && ~wrst_n)));
+    assume property ( @(posedge rclk or posedge wclk) ((cycle_count_r > 4 && cycle_count_w > 4) |-> (rrst_n && wrst_n)));
+
+    // read side
+    always @(posedge rclk) begin
+        if (rrst_n) begin
+            rptr_prev <= rptr;
+            rempty_prev <= rempty;
+            rrst_n_prev <= rrst_n;
+
+            empty: cover (rempty & ~(rempty_prev));
+            full_read_wrap: cover (rptr == 0 & ~(rptr_prev == 1 | rptr_prev == 0 | ~(rrst_n_prev)));
+            gray_read_wrap: cover (rptr[-1] != rptr_prev[-1]);
+            underflow: cover (rinc & rempty);
+            read_while_write: cover (rinc & winc);
+        end
+    end
+
+    integer wptr_prev;
+    logic wfull_prev;
+    logic wrst_n_prev;
+
+    // write side
+    always @(posedge wclk) begin
+        if(wrst_n) begin
+            wptr_prev <= wptr;
+            wfull_prev <= wfull;
+            wrst_n_prev <= wrst_n;
+
+            full: cover (wfull & ~(wfull_prev));
+            full_write_wrap: cover (wptr == 0 & ~(wptr_prev == 1 | wptr_prev == 0 | ~(wrst_n_prev)));
+            gray_write_wrap: cover (wptr[-1] != wptr_prev[-1]);
+            overflow: cover (winc & wfull);
+            write_while_read: cover (rinc & winc);
+        end
+    end
+`endif
+endmodule
+
+`resetall
+
+------
+Now, we want to test the DUT with a list of commands as its input. We want the input to cover the bins (i.e. test cases) that we care about. Here's the description of the bins that we care about:
+------
+BINS DESCRIPTION
+- You provide a list of lists, in the format: [int, int, int]. The internal lists will be interpreted as sequential instructions for a DUT.
+- The DUT is an asynchronous fifo used for clock domain crossings. The pointers are in gray code, and the MSB of the pointers indicate a ""wrap"", used to determine whether the FIFO is empty or full.
+- The read clock has a period of 13ns, the write clock has a period of 10ns.
+- The three integers in each command will be interpreted as follows:
+    - First integer: how long to ""hold"" the current command in nanoseconds. The value should be between 1 and 1000.
+    - Second integer: if it is 1, read operations occur. The value should be 0 or 1.
+    - Third integer: if it is 1, write operations occur. The value should be 0 or 1.
+- You need to cover each of the following bins with your commands:
+---
+    - full_read_wrap: the read pointer wraps to 0.
+    - gray_read_wrap: the MSB of the read pointer toggles.
+    - underflow: a read operation is requested while the FIFO is empty
+    - empty: the FIFO is empty
+    - read_while_write: on read clock edge a read operation is performed, while a write operation is being requested as well
+    - full_write_wrap: the write pointer wraps to 0.
+    - gray_write_wrap: the MSB of the write pointer toggles.
+    - overflow: a write operation is requested while the FIFO is full
+    - full: the FIFO is full
+    - write_while_read: on write clock edge a write operation is performed, while a read operation is being requested as well
+---
+------
+
+----------
+Following the bins description, and refer to the programs, generate a list of integer pairs which covers the described bins as much as you can.
+""",1892,"""[[10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1,""",600,none,9,"{'full_read_wrap': 12, 'gray_read_wrap': 25, 'full_write_wrap': 13, 'gray_write_wrap': 26, 'underflow': 3, 'overflow': 138, 'full': 130, 'read_while_write': 91, 'write_while_read': 103}"
+18,3,2,3182,"""The values you provided failed to cover all the bins.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases)
+Here are some of the unreached bins:
+------
+UNREACHED BINS
+the FIFO is empty.
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.""",2582,"""[[10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1,""",600,none,9,"{'full_read_wrap': 13, 'gray_read_wrap': 27, 'full_write_wrap': 14, 'gray_write_wrap': 28, 'underflow': 3, 'overflow': 145, 'full': 143, 'read_while_write': 105, 'write_while_read': 122}"
+19,3,3,3890,"""The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of commands to cover the unreached bins (i.e. test cases)
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the FIFO is empty.
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.""",3290,"""[[10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1,""",600,none,9,"{'full_read_wrap': 14, 'gray_read_wrap': 29, 'full_write_wrap': 15, 'gray_write_wrap': 30, 'underflow': 3, 'overflow': 153, 'full': 158, 'read_while_write': 119, 'write_while_read': 141}"
+20,3,4,4598,"""The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of commands to cover the unreached bins (i.e. test cases)
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the FIFO is empty.
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.""",3998,"""[[10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1,""",600,none,9,"{'full_read_wrap': 15, 'gray_read_wrap': 31, 'full_write_wrap': 16, 'gray_write_wrap': 32, 'underflow': 3, 'overflow': 158, 'full': 165, 'read_while_write': 135, 'write_while_read': 160}"
+21,3,5,5306,"""The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of commands to cover the unreached bins (i.e. test cases)
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the FIFO is empty.
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.""",4706,"""[[10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1,""",600,none,9,"{'full_read_wrap': 16, 'gray_read_wrap': 33, 'full_write_wrap': 17, 'gray_write_wrap': 34, 'underflow': 3, 'overflow': 165, 'full': 179, 'read_while_write': 148, 'write_while_read': 179}"
+22,3,6,5370,"""The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of commands to cover the unreached bins (i.e. test cases)
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the FIFO is empty.
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.""",4770,"""[[10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1,""",600,none,9,"{'full_read_wrap': 17, 'gray_read_wrap': 35, 'full_write_wrap': 18, 'gray_write_wrap': 36, 'underflow': 3, 'overflow': 172, 'full': 190, 'read_while_write': 163, 'write_while_read': 198}"
+23,3,7,5408,"""The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of commands to cover the unreached bins (i.e. test cases)
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the FIFO is empty.
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.""",4808,"""[[10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 0, 0], [10, 1, 0], [10, 0, 1], [10, 1, 1], [10, 1, 0], [10, 0, 1], [10, 1,""",600,reset,9,"{'full_read_wrap': 18, 'gray_read_wrap': 37, 'full_write_wrap': 19, 'gray_write_wrap': 38, 'underflow': 3, 'overflow': 179, 'full': 201, 'read_while_write': 178, 'write_while_read': 217}"
+24,4,1,2492,"""You will receive code of a DUT and a testbench for it, as well as a description of bins (i.e. test cases). 
+----------
+I have a device under test (DUT). Here's the SystemVerilog code of the DUT:
+------
+DUT CODE
+// distributed under the mit license
+// https://opensource.org/licenses/mit-license.php
+
+`timescale 1 ns / 1 ps
+`default_nettype none
+
+module async_fifo
+
+    #(
+        parameter DSIZE = 8,
+        parameter ASIZE = 4,
+        parameter FALLTHROUGH = ""TRUE"" // First word fall-through without latency
+    )(
+        input  wire             wclk,
+        input  wire             wrst_n,
+        input  wire             winc,
+        input  wire [DSIZE-1:0] wdata,
+        output wire             wfull,
+        output wire             awfull,
+        input  wire             rclk,
+        input  wire             rrst_n,
+        input  wire             rinc,
+        output wire [DSIZE-1:0] rdata,
+        output wire             rempty,
+        output wire             arempty
+    );
+
+    wire [ASIZE-1:0] waddr, raddr;
+    wire [ASIZE  :0] wptr, rptr, wq2_rptr, rq2_wptr;
+
+    // The module synchronizing the read point
+    // from read to write domain
+    sync_r2w
+    #(ASIZE)
+    sync_r2w (
+    .wq2_rptr (wq2_rptr),
+    .rptr     (rptr),
+    .wclk     (wclk),
+    .wrst_n   (wrst_n)
+    );
+
+    // The module synchronizing the write point
+    // from write to read domain
+    sync_w2r
+    #(ASIZE)
+    sync_w2r (
+    .rq2_wptr (rq2_wptr),
+    .wptr     (wptr),
+    .rclk     (rclk),
+    .rrst_n   (rrst_n)
+    );
+
+    // The module handling the write requests
+    wptr_full
+    #(ASIZE)
+    wptr_full (
+    .awfull   (awfull),
+    .wfull    (wfull),
+    .waddr    (waddr),
+    .wptr     (wptr),
+    .wq2_rptr (wq2_rptr),
+    .winc     (winc),
+    .wclk     (wclk),
+    .wrst_n   (wrst_n)
+    );
+
+    // The DC-RAM
+    fifomem
+    #(DSIZE, ASIZE, FALLTHROUGH)
+    fifomem (
+    .rclken (rinc),
+    .rclk   (rclk),
+    .rdata  (rdata),
+    .wdata  (wdata),
+    .waddr  (waddr),
+    .raddr  (raddr),
+    .wclken (winc),
+    .wfull  (wfull),
+    .wclk   (wclk)
+    );
+
+    // The module handling read requests
+    rptr_empty
+    #(ASIZE)
+    rptr_empty (
+    .arempty  (arempty),
+    .rempty   (rempty),
+    .raddr    (raddr),
+    .rptr     (rptr),
+    .rq2_wptr (rq2_wptr),
+    .rinc     (rinc),
+    .rclk     (rclk),
+    .rrst_n   (rrst_n)
+    );
+
+`ifdef FORMAL
+    integer rptr_prev;
+    logic rempty_prev;
+    logic rrst_n_prev;
+
+    logic [3:0] cycle_count_r;
+    logic [3:0] cycle_count_w;
+
+    initial begin 
+        assume(~rrst_n)
+        assume(~wrst_n)
+        cycle_count_r <= 0;
+        cycle_count_w <= 0;
+    end
+
+    always @(posedge rclk) begin
+        if (cycle_count_r < 10)
+            cycle_count_r <= cycle_count_r + 1;
+    end
+    always @(posedge wclk) begin
+        if (cycle_count_w < 10)
+            cycle_count_w <= cycle_count_w + 1;
+    end
+
+    
+    assume property ( @(posedge rclk or posedge wclk) ((cycle_count_r < 5 || cycle_count_w < 5)  |-> (~rrst_n && ~wrst_n)));
+    assume property ( @(posedge rclk or posedge wclk) ((cycle_count_r > 4 && cycle_count_w > 4) |-> (rrst_n && wrst_n)));
+
+    // read side
+    always @(posedge rclk) begin
+        if (rrst_n) begin
+            rptr_prev <= rptr;
+            rempty_prev <= rempty;
+            rrst_n_prev <= rrst_n;
+
+            empty: cover (rempty & ~(rempty_prev));
+            full_read_wrap: cover (rptr == 0 & ~(rptr_prev == 1 | rptr_prev == 0 | ~(rrst_n_prev)));
+            gray_read_wrap: cover (rptr[-1] != rptr_prev[-1]);
+            underflow: cover (rinc & rempty);
+            read_while_write: cover (rinc & winc);
+        end
+    end
+
+    integer wptr_prev;
+    logic wfull_prev;
+    logic wrst_n_prev;
+
+    // write side
+    always @(posedge wclk) begin
+        if(wrst_n) begin
+            wptr_prev <= wptr;
+            wfull_prev <= wfull;
+            wrst_n_prev <= wrst_n;
+
+            full: cover (wfull & ~(wfull_prev));
+            full_write_wrap: cover (wptr == 0 & ~(wptr_prev == 1 | wptr_prev == 0 | ~(wrst_n_prev)));
+            gray_write_wrap: cover (wptr[-1] != wptr_prev[-1]);
+            overflow: cover (winc & wfull);
+            write_while_read: cover (rinc & winc);
+        end
+    end
+`endif
+endmodule
+
+`resetall
+
+------
+Now, we want to test the DUT with a list of commands as its input. We want the input to cover the bins (i.e. test cases) that we care about. Here's the description of the bins that we care about:
+------
+BINS DESCRIPTION
+- You provide a list of lists, in the format: [int, int, int]. The internal lists will be interpreted as sequential instructions for a DUT.
+- The DUT is an asynchronous fifo used for clock domain crossings. The pointers are in gray code, and the MSB of the pointers indicate a ""wrap"", used to determine whether the FIFO is empty or full.
+- The read clock has a period of 13ns, the write clock has a period of 10ns.
+- The three integers in each command will be interpreted as follows:
+    - First integer: how long to ""hold"" the current command in nanoseconds. The value should be between 1 and 1000.
+    - Second integer: if it is 1, read operations occur. The value should be 0 or 1.
+    - Third integer: if it is 1, write operations occur. The value should be 0 or 1.
+- You need to cover each of the following bins with your commands:
+---
+    - full_read_wrap: the read pointer wraps to 0.
+    - gray_read_wrap: the MSB of the read pointer toggles.
+    - underflow: a read operation is requested while the FIFO is empty
+    - empty: the FIFO is empty
+    - read_while_write: on read clock edge a read operation is performed, while a write operation is being requested as well
+    - full_write_wrap: the write pointer wraps to 0.
+    - gray_write_wrap: the MSB of the write pointer toggles.
+    - overflow: a write operation is requested while the FIFO is full
+    - full: the FIFO is full
+    - write_while_read: on write clock edge a write operation is performed, while a read operation is being requested as well
+---
+------
+
+----------
+Following the bins description, and refer to the programs, generate a list of integer pairs which covers the described bins as much as you can.
+""",1892,"""[[10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1,""",600,none,9,"{'full_read_wrap': 19, 'gray_read_wrap': 38, 'full_write_wrap': 19, 'gray_write_wrap': 39, 'underflow': 3, 'overflow': 182, 'full': 204, 'read_while_write': 178, 'write_while_read': 217}"
+25,4,2,3182,"""The values you provided failed to cover all the bins.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases)
+Here are some of the unreached bins:
+------
+UNREACHED BINS
+the FIFO is empty.
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.""",2582,"""[[10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1,""",600,none,9,"{'full_read_wrap': 19, 'gray_read_wrap': 39, 'full_write_wrap': 20, 'gray_write_wrap': 40, 'underflow': 3, 'overflow': 185, 'full': 218, 'read_while_write': 178, 'write_while_read': 217}"
+26,4,3,3890,"""The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of commands to cover the unreached bins (i.e. test cases)
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the FIFO is empty.
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.""",3290,"""[[10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1,""",600,none,9,"{'full_read_wrap': 19, 'gray_read_wrap': 39, 'full_write_wrap': 20, 'gray_write_wrap': 40, 'underflow': 3, 'overflow': 189, 'full': 231, 'read_while_write': 178, 'write_while_read': 217}"
+27,4,4,4598,"""The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of commands to cover the unreached bins (i.e. test cases)
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the FIFO is empty.
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.""",3998,"""[[10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1,""",600,none,9,"{'full_read_wrap': 20, 'gray_read_wrap': 40, 'full_write_wrap': 20, 'gray_write_wrap': 41, 'underflow': 3, 'overflow': 192, 'full': 245, 'read_while_write': 178, 'write_while_read': 217}"
+28,4,5,5306,"""The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of commands to cover the unreached bins (i.e. test cases)
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the FIFO is empty.
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.""",4706,"""[[10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1,""",600,none,9,"{'full_read_wrap': 20, 'gray_read_wrap': 41, 'full_write_wrap': 21, 'gray_write_wrap': 42, 'underflow': 3, 'overflow': 197, 'full': 257, 'read_while_write': 178, 'write_while_read': 217}"
+29,4,6,5306,"""The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of commands to cover the unreached bins (i.e. test cases)
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the FIFO is empty.
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.""",4706,"""[[10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1,""",600,none,9,"{'full_read_wrap': 21, 'gray_read_wrap': 42, 'full_write_wrap': 21, 'gray_write_wrap': 43, 'underflow': 3, 'overflow': 201, 'full': 270, 'read_while_write': 178, 'write_while_read': 217}"
+30,4,7,5362,"""The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of commands to cover the unreached bins (i.e. test cases)
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the FIFO is empty.
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.""",4762,"""[[10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 0], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1,""",600,reset,9,"{'full_read_wrap': 21, 'gray_read_wrap': 43, 'full_write_wrap': 22, 'gray_write_wrap': 44, 'underflow': 3, 'overflow': 206, 'full': 282, 'read_while_write': 178, 'write_while_read': 217}"
+31,5,1,2492,"""You will receive code of a DUT and a testbench for it, as well as a description of bins (i.e. test cases). 
+----------
+I have a device under test (DUT). Here's the SystemVerilog code of the DUT:
+------
+DUT CODE
+// distributed under the mit license
+// https://opensource.org/licenses/mit-license.php
+
+`timescale 1 ns / 1 ps
+`default_nettype none
+
+module async_fifo
+
+    #(
+        parameter DSIZE = 8,
+        parameter ASIZE = 4,
+        parameter FALLTHROUGH = ""TRUE"" // First word fall-through without latency
+    )(
+        input  wire             wclk,
+        input  wire             wrst_n,
+        input  wire             winc,
+        input  wire [DSIZE-1:0] wdata,
+        output wire             wfull,
+        output wire             awfull,
+        input  wire             rclk,
+        input  wire             rrst_n,
+        input  wire             rinc,
+        output wire [DSIZE-1:0] rdata,
+        output wire             rempty,
+        output wire             arempty
+    );
+
+    wire [ASIZE-1:0] waddr, raddr;
+    wire [ASIZE  :0] wptr, rptr, wq2_rptr, rq2_wptr;
+
+    // The module synchronizing the read point
+    // from read to write domain
+    sync_r2w
+    #(ASIZE)
+    sync_r2w (
+    .wq2_rptr (wq2_rptr),
+    .rptr     (rptr),
+    .wclk     (wclk),
+    .wrst_n   (wrst_n)
+    );
+
+    // The module synchronizing the write point
+    // from write to read domain
+    sync_w2r
+    #(ASIZE)
+    sync_w2r (
+    .rq2_wptr (rq2_wptr),
+    .wptr     (wptr),
+    .rclk     (rclk),
+    .rrst_n   (rrst_n)
+    );
+
+    // The module handling the write requests
+    wptr_full
+    #(ASIZE)
+    wptr_full (
+    .awfull   (awfull),
+    .wfull    (wfull),
+    .waddr    (waddr),
+    .wptr     (wptr),
+    .wq2_rptr (wq2_rptr),
+    .winc     (winc),
+    .wclk     (wclk),
+    .wrst_n   (wrst_n)
+    );
+
+    // The DC-RAM
+    fifomem
+    #(DSIZE, ASIZE, FALLTHROUGH)
+    fifomem (
+    .rclken (rinc),
+    .rclk   (rclk),
+    .rdata  (rdata),
+    .wdata  (wdata),
+    .waddr  (waddr),
+    .raddr  (raddr),
+    .wclken (winc),
+    .wfull  (wfull),
+    .wclk   (wclk)
+    );
+
+    // The module handling read requests
+    rptr_empty
+    #(ASIZE)
+    rptr_empty (
+    .arempty  (arempty),
+    .rempty   (rempty),
+    .raddr    (raddr),
+    .rptr     (rptr),
+    .rq2_wptr (rq2_wptr),
+    .rinc     (rinc),
+    .rclk     (rclk),
+    .rrst_n   (rrst_n)
+    );
+
+`ifdef FORMAL
+    integer rptr_prev;
+    logic rempty_prev;
+    logic rrst_n_prev;
+
+    logic [3:0] cycle_count_r;
+    logic [3:0] cycle_count_w;
+
+    initial begin 
+        assume(~rrst_n)
+        assume(~wrst_n)
+        cycle_count_r <= 0;
+        cycle_count_w <= 0;
+    end
+
+    always @(posedge rclk) begin
+        if (cycle_count_r < 10)
+            cycle_count_r <= cycle_count_r + 1;
+    end
+    always @(posedge wclk) begin
+        if (cycle_count_w < 10)
+            cycle_count_w <= cycle_count_w + 1;
+    end
+
+    
+    assume property ( @(posedge rclk or posedge wclk) ((cycle_count_r < 5 || cycle_count_w < 5)  |-> (~rrst_n && ~wrst_n)));
+    assume property ( @(posedge rclk or posedge wclk) ((cycle_count_r > 4 && cycle_count_w > 4) |-> (rrst_n && wrst_n)));
+
+    // read side
+    always @(posedge rclk) begin
+        if (rrst_n) begin
+            rptr_prev <= rptr;
+            rempty_prev <= rempty;
+            rrst_n_prev <= rrst_n;
+
+            empty: cover (rempty & ~(rempty_prev));
+            full_read_wrap: cover (rptr == 0 & ~(rptr_prev == 1 | rptr_prev == 0 | ~(rrst_n_prev)));
+            gray_read_wrap: cover (rptr[-1] != rptr_prev[-1]);
+            underflow: cover (rinc & rempty);
+            read_while_write: cover (rinc & winc);
+        end
+    end
+
+    integer wptr_prev;
+    logic wfull_prev;
+    logic wrst_n_prev;
+
+    // write side
+    always @(posedge wclk) begin
+        if(wrst_n) begin
+            wptr_prev <= wptr;
+            wfull_prev <= wfull;
+            wrst_n_prev <= wrst_n;
+
+            full: cover (wfull & ~(wfull_prev));
+            full_write_wrap: cover (wptr == 0 & ~(wptr_prev == 1 | wptr_prev == 0 | ~(wrst_n_prev)));
+            gray_write_wrap: cover (wptr[-1] != wptr_prev[-1]);
+            overflow: cover (winc & wfull);
+            write_while_read: cover (rinc & winc);
+        end
+    end
+`endif
+endmodule
+
+`resetall
+
+------
+Now, we want to test the DUT with a list of commands as its input. We want the input to cover the bins (i.e. test cases) that we care about. Here's the description of the bins that we care about:
+------
+BINS DESCRIPTION
+- You provide a list of lists, in the format: [int, int, int]. The internal lists will be interpreted as sequential instructions for a DUT.
+- The DUT is an asynchronous fifo used for clock domain crossings. The pointers are in gray code, and the MSB of the pointers indicate a ""wrap"", used to determine whether the FIFO is empty or full.
+- The read clock has a period of 13ns, the write clock has a period of 10ns.
+- The three integers in each command will be interpreted as follows:
+    - First integer: how long to ""hold"" the current command in nanoseconds. The value should be between 1 and 1000.
+    - Second integer: if it is 1, read operations occur. The value should be 0 or 1.
+    - Third integer: if it is 1, write operations occur. The value should be 0 or 1.
+- You need to cover each of the following bins with your commands:
+---
+    - full_read_wrap: the read pointer wraps to 0.
+    - gray_read_wrap: the MSB of the read pointer toggles.
+    - underflow: a read operation is requested while the FIFO is empty
+    - empty: the FIFO is empty
+    - read_while_write: on read clock edge a read operation is performed, while a write operation is being requested as well
+    - full_write_wrap: the write pointer wraps to 0.
+    - gray_write_wrap: the MSB of the write pointer toggles.
+    - overflow: a write operation is requested while the FIFO is full
+    - full: the FIFO is full
+    - write_while_read: on write clock edge a write operation is performed, while a read operation is being requested as well
+---
+------
+
+----------
+Following the bins description, and refer to the programs, generate a list of integer pairs which covers the described bins as much as you can.
+""",1892,"""[[10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 1, 1], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 1], [10, 1, 0], [10, 1, 1], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 1, 1], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 1], [10, 1, 0], [10, 1, 1], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 1, 1], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 1], [10, 1, 0], [10, 1, 1], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 1, 1], [10, 0,""",600,none,9,"{'full_read_wrap': 22, 'gray_read_wrap': 45, 'full_write_wrap': 22, 'gray_write_wrap': 45, 'underflow': 3, 'overflow': 214, 'full': 291, 'read_while_write': 192, 'write_while_read': 237}"
+32,5,2,3182,"""The values you provided failed to cover all the bins.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases)
+Here are some of the unreached bins:
+------
+UNREACHED BINS
+the FIFO is empty.
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.""",2582,"""[[10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 1, 1], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 1], [10, 1, 0], [10, 1, 1], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 1, 1], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 1], [10, 1, 0], [10, 1, 1], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 1, 1], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 1], [10, 1, 0], [10, 1, 1], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 1, 1], [10, 0,""",600,none,9,"{'full_read_wrap': 23, 'gray_read_wrap': 46, 'full_write_wrap': 23, 'gray_write_wrap': 47, 'underflow': 3, 'overflow': 226, 'full': 301, 'read_while_write': 206, 'write_while_read': 257}"
+33,5,3,3890,"""The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of commands to cover the unreached bins (i.e. test cases)
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the FIFO is empty.
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.""",3290,"""[[10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 1, 1], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 1], [10, 1, 0], [10, 1, 1], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 1, 1], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 1], [10, 1, 0], [10, 1, 1], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 1, 1], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 1], [10, 1, 0], [10, 1, 1], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 1, 1], [10, 0,""",600,none,9,"{'full_read_wrap': 24, 'gray_read_wrap': 48, 'full_write_wrap': 24, 'gray_write_wrap': 49, 'underflow': 3, 'overflow': 230, 'full': 307, 'read_while_write': 219, 'write_while_read': 277}"
+34,5,4,4598,"""The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of commands to cover the unreached bins (i.e. test cases)
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the FIFO is empty.
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.""",3998,"""[[10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 1, 1], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 1], [10, 1, 0], [10, 1, 1], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 1, 1], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 1], [10, 1, 0], [10, 1, 1], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 1, 1], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 0, 0], [10, 1, 1], [10, 1, 0], [10, 1, 1], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 0, 1], [10, 1, 0], [10, 0, 1], [10, 1, 0], [10, 1, 1], [10, 0, 0], [10, 1, 1], [10, 0,""",600,none,9,"{'full_read_wrap': 25, 'gray_read_wrap': 50, 'full_write_wrap': 25, 'gray_write_wrap': 51, 'underflow': 3, 'overflow': 238, 'full': 315, 'read_while_write': 234, 'write_while_read': 297}"

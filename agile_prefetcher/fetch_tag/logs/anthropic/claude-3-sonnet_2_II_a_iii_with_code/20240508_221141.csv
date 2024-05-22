@@ -1,0 +1,384 @@
+Model,anthropic/claude-3-sonnet,SYSTEM,"Please provide a list of lists, in the format: [[string, int, int, int], [string, int, int, int], ...].Any text outside this format is not allowed.The first integer should be between 0 and 63, the other two between 0 and 1023.Example: [[allocate, 15, 64, 0], [adjacency_write, 15, 1, 48]]Do NOT provide any comments, extra remarks, context - only provide a list",temperature,0.4,top_p,1,Prompter,TemplatePromptGeneratorAG_FT,Extractor,UniversalExtractor
+Total Message#,Dialog #,Message #,Total Token Cnt,USER,Input Token Cnt,ASSISTANT,Output Token Cnt,Action,Coverage Rate,Coverage Plan
+1,1,1,1512,"""You will receive a description of bins (i.e. test cases) of a testbench for a hardware device under test (DUT).The purpose of this device is to load data on three different queues: an ""adjacency queue"" (depth: 64), a ""message queue"" (depth: 4096), and a ""scale factor queue"" (depth: 64)
+
+----------
+Now, we want to test the DUT with a list of commands as its input. We want the input to cover the bins (i.e. test cases) that we care about. Here's the description of the bins that we care about:
+------
+BINS DESCRIPTION
+- You provide a list of lists, in the format: [string, int, int, int]. The internal lists will be interpreted as sequential instructions for a DUT.
+- The DUT is a device that includes three queues (RAM): an ""adjacency queue"" (depth: 64), a ""message queue"" (depth: 4096), and a ""scale factor queue"" (depth: 64)
+- The actual data the queues are loaded with is not important.
+- The three integers you provide are called:
+    - First integer: ""nodeslot"" (provide a number between 63 and 0)
+    - Second integer: ""feature_count"" (provide a number between 1023 and 1)
+    - Third integer: ""neighbour_count"" (provide a number between 1023 and 1)
+- The string in the internal lists defines the operation performed on the DUT. The operations are as follows:
+    - ""allocate"": you allocate the DUT a ""nodeslot"". You also allocate the DUT a ""feature_count"". ""feature_count"" should be at least 1. Keep note of the nodeslot you allocated to. You will need it to hit the majority of the coverage bins.
+    - ""deallocate"": you deallocate the DUT, it will not be allocated to any ""nodeslot"", and the ""feature_count"" is reset to 0. (do NOT use this often)
+    - ""adjacency_write"": you instruct the DUT to load data into the ""adjacency queue"". You have to provide the ""nodeslot"". The number of items loaded is equal to ""neighbour_count"" divided by 16, rounded up. ""neighbour_count"" should be at least 1.
+    - ""message_write"": you instruct the DUT to load data into the ""adjacency queue"". You have to provide the ""nodeslot"". The number of items loaded is equal to ""neighbour_count"" divided by 16, rounded up, multiplied by the ""feature_count"".
+    - ""scale_write"": you instruct the DUT to load data into the ""scale factor queue"". You have to provide the ""nodeslot"". The number of items loaded is equal to ""neighbour_count"".
+ONLY USE THE ABOVE MENTIONED STRINGS IN YOUR INSTRUCTIONS
+- You need to cover each of the following bins with your commands (an overflow occurs on a queue if the previous instruction tried to load more data on the queue than its depth):
+---
+    - adj_dealloc - the DUT is insctructed to load the ""adjacency queue"", but the DUT was not allocated a ""nodeslot""
+    - mess_dealloc - the DUT is insctructed to load the ""message queue"", but the DUT was not allocated a ""nodeslot""
+    - scale_dealloc - the DUT is insctructed to load the ""scale factor queue"", but the DUT was not allocated a ""nodeslot""
+    - adj_nomatch - the DUT is insctructed to load the ""adjacency queue"", but the ""nodeslot"" provided for this command does not match the ""nodeslot"" allocated to the DUT
+    - mess_nomatch - the DUT is insctructed to load the ""message queue"", but the ""nodeslot"" provided for this command does not match the ""nodeslot"" allocated to the DUT
+    - scale_nomatch - the DUT is insctructed to load the ""scale factor queue"", but the ""nodeslot"" provided for this command does not match the ""nodeslot"" allocated to the DUT
+    - mess_fetch_adj_nopartial - the DUT is insctructed to load the ""message queue"", and there is no overflow on the ""adjacency queue""
+    - mess_fetch_adj_partial - the DUT is insctructed to load the ""message queue"", and there is overflow on the ""adjacency queue""
+    - mess_nopartial - the DUT is insctructed to load the ""message queue"", not resulting in it overflowing
+    - mess_partial - the DUT is insctructed to load the ""message queue"", resulting in it overflowing
+    - scale_nopartial - the DUT is insctructed to load the ""scale factor queue"", not resulting in it overflowing
+    - scale_partial - the DUT is insctructed to load the ""scale factor queue"", resulting in it overflowing
+---
+------
+
+----------
+Following the bins description, generate a list of integer pairs which covers the described bins as much as you can.
+""",1307,"""[[allocate, 15, 64, 0], [adjacency_write, 15, 1, 48], [message_write, 15, 64, 1024], [scale_write, 15, 64, 64], [deallocate, 0, 0, 0], [adjacency_write, 0, 1, 1], [message_write, 0, 1, 1], [scale_write, 0, 1, 1], [allocate, 15, 64, 0], [adjacency_write, 16, 1, 48], [message_write, 15, 64, 4096], [scale_write, 15, 64, 1024], [message_write, 15, 1, 4096], [scale_write, 15, 1, 1024]]""",205,none,7,"{'adj_dealloc': 1, 'mess_dealloc': 1, 'scale_dealloc': 1, 'adj_nomatch': 2, 'mess_fetch_adj_partial': 4, 'mess_nopartial': 3, 'scale_nopartial': 3}"
+2,1,2,1878,"""The values you provided failed to cover all the bins.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases)
+Do NOT provide any comments, extra remarks, context - only provide a listHere are some of the unreached bins:
+------
+UNREACHED BINS
+the DUT is insctructed to load the ""message queue"", but the ""nodeslot"" provided for this command does not match the ""nodeslot"" allocated to the DUT
+the DUT is insctructed to load the ""scale factor queue"", but the ""nodeslot"" provided for this command does not match the ""nodeslot"" allocated to the DUT
+the DUT is insctructed to load the ""message queue"", and there is no overflow on the ""adjacency queue""
+the DUT is insctructed to load the ""message queue"", resulting in it overflowing
+the DUT is insctructed to load the ""scale factor queue"", resulting in it overflowing
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.Do NOT provide any comments, extra remarks, context - only provide a list""",1788,"""[[allocate, 15, 64, 0], [adjacency_write, 15, 1, 48], [message_write, 16, 64, 1024], [scale_write, 16, 64, 64], [message_write, 15, 64, 4096], [scale_write, 15, 64, 1024]]""",90,none,9,"{'adj_dealloc': 1, 'mess_dealloc': 1, 'scale_dealloc': 1, 'adj_nomatch': 2, 'mess_nomatch': 1, 'scale_nomatch': 1, 'mess_fetch_adj_partial': 6, 'mess_nopartial': 4, 'scale_nopartial': 4}"
+3,1,3,2147,"""The values you provided failed to cover all the bins.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases)
+Do NOT provide any comments, extra remarks, context - only provide a listHere are some of the unreached bins:
+------
+UNREACHED BINS
+the DUT is insctructed to load the ""message queue"", and there is no overflow on the ""adjacency queue""
+the DUT is insctructed to load the ""message queue"", resulting in it overflowing
+the DUT is insctructed to load the ""scale factor queue"", resulting in it overflowing
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.Do NOT provide any comments, extra remarks, context - only provide a list""",2071,"""[[allocate, 15, 64, 0], [adjacency_write, 15, 1, 32], [message_write, 15, 64, 1024], [message_write, 15, 64, 4096], [scale_write, 15, 64, 1024]]""",76,none,9,"{'adj_dealloc': 1, 'mess_dealloc': 1, 'scale_dealloc': 1, 'adj_nomatch': 2, 'mess_nomatch': 1, 'scale_nomatch': 1, 'mess_fetch_adj_partial': 8, 'mess_nopartial': 6, 'scale_nopartial': 5}"
+4,1,4,2434,"""The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases)
+Do NOT provide any comments, extra remarks, context - only provide a listHere are some of  the unreached bins:
+------
+UNREACHED BINS
+the DUT is insctructed to load the ""message queue"", and there is no overflow on the ""adjacency queue""
+the DUT is insctructed to load the ""message queue"", resulting in it overflowing
+the DUT is insctructed to load the ""scale factor queue"", resulting in it overflowing
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.Do NOT provide any comments, extra remarks, context - only provide a list""",2359,"""[[allocate, 15, 64, 0], [adjacency_write, 15, 1, 48], [message_write, 15, 32, 512], [message_write, 15, 64, 4097], [scale_write, 15, 64, 1024]]""",75,none,9,"{'adj_dealloc': 1, 'mess_dealloc': 1, 'scale_dealloc': 1, 'adj_nomatch': 2, 'mess_nomatch': 1, 'scale_nomatch': 1, 'mess_fetch_adj_partial': 10, 'mess_nopartial': 8, 'scale_nopartial': 6}"
+5,1,5,2720,"""The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases)
+Do NOT provide any comments, extra remarks, context - only provide a listHere are some of  the unreached bins:
+------
+UNREACHED BINS
+the DUT is insctructed to load the ""message queue"", and there is no overflow on the ""adjacency queue""
+the DUT is insctructed to load the ""message queue"", resulting in it overflowing
+the DUT is insctructed to load the ""scale factor queue"", resulting in it overflowing
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.Do NOT provide any comments, extra remarks, context - only provide a list""",2646,"""[[allocate, 15, 64, 0], [adjacency_write, 15, 2, 32], [message_write, 15, 64, 512], [message_write, 15, 64, 4097], [scale_write, 15, 64, 65]]""",74,none,9,"{'adj_dealloc': 1, 'mess_dealloc': 1, 'scale_dealloc': 1, 'adj_nomatch': 2, 'mess_nomatch': 1, 'scale_nomatch': 1, 'mess_fetch_adj_partial': 12, 'mess_nopartial': 10, 'scale_nopartial': 7}"
+6,1,6,2719,"""The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases)
+Do NOT provide any comments, extra remarks, context - only provide a listHere are some of  the unreached bins:
+------
+UNREACHED BINS
+the DUT is insctructed to load the ""message queue"", and there is no overflow on the ""adjacency queue""
+the DUT is insctructed to load the ""message queue"", resulting in it overflowing
+the DUT is insctructed to load the ""scale factor queue"", resulting in it overflowing
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.Do NOT provide any comments, extra remarks, context - only provide a list""",2645,"""[[allocate, 15, 64, 0], [adjacency_write, 15, 1, 63], [message_write, 15, 64, 1], [message_write, 15, 64, 4097], [scale_write, 15, 64, 65]]""",74,none,9,"{'adj_dealloc': 1, 'mess_dealloc': 1, 'scale_dealloc': 1, 'adj_nomatch': 2, 'mess_nomatch': 1, 'scale_nomatch': 1, 'mess_fetch_adj_partial': 14, 'mess_nopartial': 12, 'scale_nopartial': 8}"
+7,1,7,2640,"""The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases)
+Do NOT provide any comments, extra remarks, context - only provide a listHere are some of  the unreached bins:
+------
+UNREACHED BINS
+the DUT is insctructed to load the ""message queue"", and there is no overflow on the ""adjacency queue""
+the DUT is insctructed to load the ""message queue"", resulting in it overflowing
+the DUT is insctructed to load the ""scale factor queue"", resulting in it overflowing
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.Do NOT provide any comments, extra remarks, context - only provide a list""",2566,"""[[allocate, 15, 64, 0], [adjacency_write, 15, 1, 63], [message_write, 15, 1, 1], [message_write, 15, 64, 4097], [scale_write, 15, 64, 65]]""",74,reset,9,"{'adj_dealloc': 1, 'mess_dealloc': 1, 'scale_dealloc': 1, 'adj_nomatch': 2, 'mess_nomatch': 1, 'scale_nomatch': 1, 'mess_fetch_adj_partial': 16, 'mess_nopartial': 14, 'scale_nopartial': 9}"
+8,2,1,1510,"""You will receive a description of bins (i.e. test cases) of a testbench for a hardware device under test (DUT).The purpose of this device is to load data on three different queues: an ""adjacency queue"" (depth: 64), a ""message queue"" (depth: 4096), and a ""scale factor queue"" (depth: 64)
+
+----------
+Now, we want to test the DUT with a list of commands as its input. We want the input to cover the bins (i.e. test cases) that we care about. Here's the description of the bins that we care about:
+------
+BINS DESCRIPTION
+- You provide a list of lists, in the format: [string, int, int, int]. The internal lists will be interpreted as sequential instructions for a DUT.
+- The DUT is a device that includes three queues (RAM): an ""adjacency queue"" (depth: 64), a ""message queue"" (depth: 4096), and a ""scale factor queue"" (depth: 64)
+- The actual data the queues are loaded with is not important.
+- The three integers you provide are called:
+    - First integer: ""nodeslot"" (provide a number between 63 and 0)
+    - Second integer: ""feature_count"" (provide a number between 1023 and 1)
+    - Third integer: ""neighbour_count"" (provide a number between 1023 and 1)
+- The string in the internal lists defines the operation performed on the DUT. The operations are as follows:
+    - ""allocate"": you allocate the DUT a ""nodeslot"". You also allocate the DUT a ""feature_count"". ""feature_count"" should be at least 1. Keep note of the nodeslot you allocated to. You will need it to hit the majority of the coverage bins.
+    - ""deallocate"": you deallocate the DUT, it will not be allocated to any ""nodeslot"", and the ""feature_count"" is reset to 0. (do NOT use this often)
+    - ""adjacency_write"": you instruct the DUT to load data into the ""adjacency queue"". You have to provide the ""nodeslot"". The number of items loaded is equal to ""neighbour_count"" divided by 16, rounded up. ""neighbour_count"" should be at least 1.
+    - ""message_write"": you instruct the DUT to load data into the ""adjacency queue"". You have to provide the ""nodeslot"". The number of items loaded is equal to ""neighbour_count"" divided by 16, rounded up, multiplied by the ""feature_count"".
+    - ""scale_write"": you instruct the DUT to load data into the ""scale factor queue"". You have to provide the ""nodeslot"". The number of items loaded is equal to ""neighbour_count"".
+ONLY USE THE ABOVE MENTIONED STRINGS IN YOUR INSTRUCTIONS
+- You need to cover each of the following bins with your commands (an overflow occurs on a queue if the previous instruction tried to load more data on the queue than its depth):
+---
+    - adj_dealloc - the DUT is insctructed to load the ""adjacency queue"", but the DUT was not allocated a ""nodeslot""
+    - mess_dealloc - the DUT is insctructed to load the ""message queue"", but the DUT was not allocated a ""nodeslot""
+    - scale_dealloc - the DUT is insctructed to load the ""scale factor queue"", but the DUT was not allocated a ""nodeslot""
+    - adj_nomatch - the DUT is insctructed to load the ""adjacency queue"", but the ""nodeslot"" provided for this command does not match the ""nodeslot"" allocated to the DUT
+    - mess_nomatch - the DUT is insctructed to load the ""message queue"", but the ""nodeslot"" provided for this command does not match the ""nodeslot"" allocated to the DUT
+    - scale_nomatch - the DUT is insctructed to load the ""scale factor queue"", but the ""nodeslot"" provided for this command does not match the ""nodeslot"" allocated to the DUT
+    - mess_fetch_adj_nopartial - the DUT is insctructed to load the ""message queue"", and there is no overflow on the ""adjacency queue""
+    - mess_fetch_adj_partial - the DUT is insctructed to load the ""message queue"", and there is overflow on the ""adjacency queue""
+    - mess_nopartial - the DUT is insctructed to load the ""message queue"", not resulting in it overflowing
+    - mess_partial - the DUT is insctructed to load the ""message queue"", resulting in it overflowing
+    - scale_nopartial - the DUT is insctructed to load the ""scale factor queue"", not resulting in it overflowing
+    - scale_partial - the DUT is insctructed to load the ""scale factor queue"", resulting in it overflowing
+---
+------
+
+----------
+Following the bins description, generate a list of integer pairs which covers the described bins as much as you can.
+""",1307,"""[[allocate, 15, 64, 0], [adjacency_write, 15, 1, 48], [message_write, 15, 64, 1024], [scale_write, 15, 64, 64], [deallocate, 0, 0, 0], [adjacency_write, 0, 1, 1], [message_write, 0, 1, 1], [scale_write, 0, 1, 1], [allocate, 15, 64, 0], [adjacency_write, 16, 1, 48], [message_write, 15, 64, 4096], [scale_write, 15, 65, 64], [message_write, 15, 64, 4097], [scale_write, 15, 64, 65]]""",203,none,9,"{'adj_dealloc': 2, 'mess_dealloc': 2, 'scale_dealloc': 2, 'adj_nomatch': 3, 'mess_nomatch': 1, 'scale_nomatch': 1, 'mess_fetch_adj_partial': 20, 'mess_nopartial': 17, 'scale_nopartial': 12}"
+9,2,2,1818,"""The values you provided failed to cover all the bins.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases)
+Do NOT provide any comments, extra remarks, context - only provide a listHere are some of the unreached bins:
+------
+UNREACHED BINS
+the DUT is insctructed to load the ""message queue"", and there is no overflow on the ""adjacency queue""
+the DUT is insctructed to load the ""message queue"", resulting in it overflowing
+the DUT is insctructed to load the ""scale factor queue"", resulting in it overflowing
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.Do NOT provide any comments, extra remarks, context - only provide a list""",1703,"""[[allocate, 15, 64, 0], [adjacency_write, 15, 1, 16], [message_write, 15, 64, 64], [allocate, 15, 64, 0], [adjacency_write, 15, 1, 64], [message_write, 15, 64, 4097], [allocate, 15, 64, 0], [scale_write, 15, 64, 65]]""",115,none,9,"{'adj_dealloc': 2, 'mess_dealloc': 2, 'scale_dealloc': 2, 'adj_nomatch': 3, 'mess_nomatch': 1, 'scale_nomatch': 1, 'mess_fetch_adj_partial': 22, 'mess_nopartial': 19, 'scale_nopartial': 13}"
+10,2,3,2146,"""The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases)
+Do NOT provide any comments, extra remarks, context - only provide a listHere are some of  the unreached bins:
+------
+UNREACHED BINS
+the DUT is insctructed to load the ""message queue"", and there is no overflow on the ""adjacency queue""
+the DUT is insctructed to load the ""message queue"", resulting in it overflowing
+the DUT is insctructed to load the ""scale factor queue"", resulting in it overflowing
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.Do NOT provide any comments, extra remarks, context - only provide a list""",2030,"""[[allocate, 0, 64, 0], [adjacency_write, 0, 1, 63], [message_write, 0, 64, 1024], [allocate, 15, 64, 0], [adjacency_write, 15, 1, 63], [message_write, 15, 64, 4097], [allocate, 31, 64, 0], [scale_write, 31, 64, 65]]""",116,none,9,"{'adj_dealloc': 2, 'mess_dealloc': 2, 'scale_dealloc': 2, 'adj_nomatch': 4, 'mess_nomatch': 2, 'scale_nomatch': 2, 'mess_fetch_adj_partial': 24, 'mess_nopartial': 20, 'scale_nopartial': 13}"
+11,2,4,2474,"""The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases)
+Do NOT provide any comments, extra remarks, context - only provide a listHere are some of  the unreached bins:
+------
+UNREACHED BINS
+the DUT is insctructed to load the ""message queue"", and there is no overflow on the ""adjacency queue""
+the DUT is insctructed to load the ""message queue"", resulting in it overflowing
+the DUT is insctructed to load the ""scale factor queue"", resulting in it overflowing
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.Do NOT provide any comments, extra remarks, context - only provide a list""",2358,"""[[allocate, 0, 64, 0], [adjacency_write, 0, 1, 63], [message_write, 0, 64, 1023], [allocate, 15, 64, 0], [adjacency_write, 15, 1, 63], [message_write, 15, 64, 4097], [allocate, 31, 64, 0], [scale_write, 31, 64, 65]]""",116,none,9,"{'adj_dealloc': 2, 'mess_dealloc': 2, 'scale_dealloc': 2, 'adj_nomatch': 5, 'mess_nomatch': 3, 'scale_nomatch': 3, 'mess_fetch_adj_partial': 26, 'mess_nopartial': 21, 'scale_nopartial': 13}"
+12,2,5,2802,"""The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases)
+Do NOT provide any comments, extra remarks, context - only provide a listHere are some of  the unreached bins:
+------
+UNREACHED BINS
+the DUT is insctructed to load the ""message queue"", and there is no overflow on the ""adjacency queue""
+the DUT is insctructed to load the ""message queue"", resulting in it overflowing
+the DUT is insctructed to load the ""scale factor queue"", resulting in it overflowing
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.Do NOT provide any comments, extra remarks, context - only provide a list""",2686,"""[[allocate, 0, 64, 0], [adjacency_write, 0, 1, 63], [message_write, 0, 64, 1024], [allocate, 15, 64, 0], [adjacency_write, 15, 1, 63], [message_write, 15, 64, 4096], [allocate, 31, 64, 0], [scale_write, 31, 64, 65]]""",116,none,9,"{'adj_dealloc': 2, 'mess_dealloc': 2, 'scale_dealloc': 2, 'adj_nomatch': 6, 'mess_nomatch': 4, 'scale_nomatch': 4, 'mess_fetch_adj_partial': 28, 'mess_nopartial': 22, 'scale_nopartial': 13}"
+13,2,6,2779,"""The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases)
+Do NOT provide any comments, extra remarks, context - only provide a listHere are some of  the unreached bins:
+------
+UNREACHED BINS
+the DUT is insctructed to load the ""message queue"", and there is no overflow on the ""adjacency queue""
+the DUT is insctructed to load the ""message queue"", resulting in it overflowing
+the DUT is insctructed to load the ""scale factor queue"", resulting in it overflowing
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.Do NOT provide any comments, extra remarks, context - only provide a list""",2664,"""[[allocate, 0, 64, 0], [adjacency_write, 0, 1, 63], [message_write, 0, 1, 1], [allocate, 15, 64, 0], [adjacency_write, 15, 1, 63], [message_write, 15, 64, 4097], [allocate, 31, 64, 0], [scale_write, 31, 64, 65]]""",115,none,9,"{'adj_dealloc': 2, 'mess_dealloc': 2, 'scale_dealloc': 2, 'adj_nomatch': 7, 'mess_nomatch': 5, 'scale_nomatch': 5, 'mess_fetch_adj_partial': 30, 'mess_nopartial': 23, 'scale_nopartial': 13}"
+14,2,7,2738,"""The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases)
+Do NOT provide any comments, extra remarks, context - only provide a listHere are some of  the unreached bins:
+------
+UNREACHED BINS
+the DUT is insctructed to load the ""message queue"", and there is no overflow on the ""adjacency queue""
+the DUT is insctructed to load the ""message queue"", resulting in it overflowing
+the DUT is insctructed to load the ""scale factor queue"", resulting in it overflowing
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.Do NOT provide any comments, extra remarks, context - only provide a list""",2622,"""[[allocate, 0, 64, 0], [adjacency_write, 0, 4, 63], [message_write, 0, 64, 1024], [allocate, 15, 64, 0], [adjacency_write, 15, 1, 63], [message_write, 15, 64, 4097], [allocate, 31, 64, 0], [scale_write, 31, 64, 65]]""",116,reset,9,"{'adj_dealloc': 2, 'mess_dealloc': 2, 'scale_dealloc': 2, 'adj_nomatch': 8, 'mess_nomatch': 6, 'scale_nomatch': 6, 'mess_fetch_adj_partial': 32, 'mess_nopartial': 24, 'scale_nopartial': 13}"
+15,3,1,1512,"""You will receive a description of bins (i.e. test cases) of a testbench for a hardware device under test (DUT).The purpose of this device is to load data on three different queues: an ""adjacency queue"" (depth: 64), a ""message queue"" (depth: 4096), and a ""scale factor queue"" (depth: 64)
+
+----------
+Now, we want to test the DUT with a list of commands as its input. We want the input to cover the bins (i.e. test cases) that we care about. Here's the description of the bins that we care about:
+------
+BINS DESCRIPTION
+- You provide a list of lists, in the format: [string, int, int, int]. The internal lists will be interpreted as sequential instructions for a DUT.
+- The DUT is a device that includes three queues (RAM): an ""adjacency queue"" (depth: 64), a ""message queue"" (depth: 4096), and a ""scale factor queue"" (depth: 64)
+- The actual data the queues are loaded with is not important.
+- The three integers you provide are called:
+    - First integer: ""nodeslot"" (provide a number between 63 and 0)
+    - Second integer: ""feature_count"" (provide a number between 1023 and 1)
+    - Third integer: ""neighbour_count"" (provide a number between 1023 and 1)
+- The string in the internal lists defines the operation performed on the DUT. The operations are as follows:
+    - ""allocate"": you allocate the DUT a ""nodeslot"". You also allocate the DUT a ""feature_count"". ""feature_count"" should be at least 1. Keep note of the nodeslot you allocated to. You will need it to hit the majority of the coverage bins.
+    - ""deallocate"": you deallocate the DUT, it will not be allocated to any ""nodeslot"", and the ""feature_count"" is reset to 0. (do NOT use this often)
+    - ""adjacency_write"": you instruct the DUT to load data into the ""adjacency queue"". You have to provide the ""nodeslot"". The number of items loaded is equal to ""neighbour_count"" divided by 16, rounded up. ""neighbour_count"" should be at least 1.
+    - ""message_write"": you instruct the DUT to load data into the ""adjacency queue"". You have to provide the ""nodeslot"". The number of items loaded is equal to ""neighbour_count"" divided by 16, rounded up, multiplied by the ""feature_count"".
+    - ""scale_write"": you instruct the DUT to load data into the ""scale factor queue"". You have to provide the ""nodeslot"". The number of items loaded is equal to ""neighbour_count"".
+ONLY USE THE ABOVE MENTIONED STRINGS IN YOUR INSTRUCTIONS
+- You need to cover each of the following bins with your commands (an overflow occurs on a queue if the previous instruction tried to load more data on the queue than its depth):
+---
+    - adj_dealloc - the DUT is insctructed to load the ""adjacency queue"", but the DUT was not allocated a ""nodeslot""
+    - mess_dealloc - the DUT is insctructed to load the ""message queue"", but the DUT was not allocated a ""nodeslot""
+    - scale_dealloc - the DUT is insctructed to load the ""scale factor queue"", but the DUT was not allocated a ""nodeslot""
+    - adj_nomatch - the DUT is insctructed to load the ""adjacency queue"", but the ""nodeslot"" provided for this command does not match the ""nodeslot"" allocated to the DUT
+    - mess_nomatch - the DUT is insctructed to load the ""message queue"", but the ""nodeslot"" provided for this command does not match the ""nodeslot"" allocated to the DUT
+    - scale_nomatch - the DUT is insctructed to load the ""scale factor queue"", but the ""nodeslot"" provided for this command does not match the ""nodeslot"" allocated to the DUT
+    - mess_fetch_adj_nopartial - the DUT is insctructed to load the ""message queue"", and there is no overflow on the ""adjacency queue""
+    - mess_fetch_adj_partial - the DUT is insctructed to load the ""message queue"", and there is overflow on the ""adjacency queue""
+    - mess_nopartial - the DUT is insctructed to load the ""message queue"", not resulting in it overflowing
+    - mess_partial - the DUT is insctructed to load the ""message queue"", resulting in it overflowing
+    - scale_nopartial - the DUT is insctructed to load the ""scale factor queue"", not resulting in it overflowing
+    - scale_partial - the DUT is insctructed to load the ""scale factor queue"", resulting in it overflowing
+---
+------
+
+----------
+Following the bins description, generate a list of integer pairs which covers the described bins as much as you can.
+""",1307,"""[[allocate, 15, 64, 0], [adjacency_write, 15, 1, 48], [message_write, 15, 64, 1024], [scale_write, 15, 64, 64], [deallocate, 0, 0, 0], [adjacency_write, 0, 1, 1], [message_write, 0, 1, 1], [scale_write, 0, 1, 1], [allocate, 15, 64, 0], [adjacency_write, 16, 1, 48], [message_write, 15, 64, 4096], [scale_write, 15, 64, 1024], [message_write, 15, 1, 4096], [scale_write, 15, 1, 1024]]""",205,none,9,"{'adj_dealloc': 3, 'mess_dealloc': 3, 'scale_dealloc': 3, 'adj_nomatch': 9, 'mess_nomatch': 6, 'scale_nomatch': 6, 'mess_fetch_adj_partial': 36, 'mess_nopartial': 27, 'scale_nopartial': 16}"
+16,3,2,1805,"""The values you provided failed to cover all the bins.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases)
+Do NOT provide any comments, extra remarks, context - only provide a listHere are some of the unreached bins:
+------
+UNREACHED BINS
+the DUT is insctructed to load the ""message queue"", and there is no overflow on the ""adjacency queue""
+the DUT is insctructed to load the ""message queue"", resulting in it overflowing
+the DUT is insctructed to load the ""scale factor queue"", resulting in it overflowing
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.Do NOT provide any comments, extra remarks, context - only provide a list""",1705,"""[[allocate, 15, 64, 0], [adjacency_write, 15, 1, 16], [message_write, 15, 64, 64], [allocate, 15, 64, 0], [message_write, 15, 64, 4097], [allocate, 15, 64, 0], [scale_write, 15, 64, 65]]""",100,none,9,"{'adj_dealloc': 3, 'mess_dealloc': 3, 'scale_dealloc': 3, 'adj_nomatch': 9, 'mess_nomatch': 6, 'scale_nomatch': 6, 'mess_fetch_adj_partial': 38, 'mess_nopartial': 29, 'scale_nopartial': 17}"
+17,3,3,2117,"""The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases)
+Do NOT provide any comments, extra remarks, context - only provide a listHere are some of  the unreached bins:
+------
+UNREACHED BINS
+the DUT is insctructed to load the ""message queue"", and there is no overflow on the ""adjacency queue""
+the DUT is insctructed to load the ""message queue"", resulting in it overflowing
+the DUT is insctructed to load the ""scale factor queue"", resulting in it overflowing
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.Do NOT provide any comments, extra remarks, context - only provide a list""",2017,"""[[allocate, 0, 64, 0], [adjacency_write, 0, 1, 63], [message_write, 0, 64, 64], [allocate, 0, 64, 0], [message_write, 0, 64, 4097], [allocate, 0, 64, 0], [scale_write, 0, 64, 65]]""",100,none,9,"{'adj_dealloc': 3, 'mess_dealloc': 3, 'scale_dealloc': 3, 'adj_nomatch': 10, 'mess_nomatch': 8, 'scale_nomatch': 7, 'mess_fetch_adj_partial': 40, 'mess_nopartial': 29, 'scale_nopartial': 17}"
+18,3,4,2429,"""The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases)
+Do NOT provide any comments, extra remarks, context - only provide a listHere are some of  the unreached bins:
+------
+UNREACHED BINS
+the DUT is insctructed to load the ""message queue"", and there is no overflow on the ""adjacency queue""
+the DUT is insctructed to load the ""message queue"", resulting in it overflowing
+the DUT is insctructed to load the ""scale factor queue"", resulting in it overflowing
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.Do NOT provide any comments, extra remarks, context - only provide a list""",2329,"""[[allocate, 0, 64, 0], [adjacency_write, 0, 1, 63], [message_write, 0, 64, 64], [allocate, 1, 64, 0], [message_write, 1, 64, 4097], [allocate, 2, 64, 0], [scale_write, 2, 64, 65]]""",100,none,9,"{'adj_dealloc': 3, 'mess_dealloc': 3, 'scale_dealloc': 3, 'adj_nomatch': 11, 'mess_nomatch': 10, 'scale_nomatch': 8, 'mess_fetch_adj_partial': 42, 'mess_nopartial': 29, 'scale_nopartial': 17}"
+19,3,5,2743,"""The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases)
+Do NOT provide any comments, extra remarks, context - only provide a listHere are some of  the unreached bins:
+------
+UNREACHED BINS
+the DUT is insctructed to load the ""message queue"", and there is no overflow on the ""adjacency queue""
+the DUT is insctructed to load the ""message queue"", resulting in it overflowing
+the DUT is insctructed to load the ""scale factor queue"", resulting in it overflowing
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.Do NOT provide any comments, extra remarks, context - only provide a list""",2641,"""[[allocate, 0, 64, 0], [adjacency_write, 0, 1, 63], [message_write, 0, 64, 64], [allocate, 1, 1024, 0], [message_write, 1, 1024, 4096], [allocate, 2, 64, 0], [scale_write, 2, 64, 65]]""",102,none,9,"{'adj_dealloc': 3, 'mess_dealloc': 3, 'scale_dealloc': 3, 'adj_nomatch': 12, 'mess_nomatch': 12, 'scale_nomatch': 9, 'mess_fetch_adj_partial': 44, 'mess_nopartial': 29, 'scale_nopartial': 17}"
+20,3,6,2792,"""The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases)
+Do NOT provide any comments, extra remarks, context - only provide a listHere are some of  the unreached bins:
+------
+UNREACHED BINS
+the DUT is insctructed to load the ""message queue"", and there is no overflow on the ""adjacency queue""
+the DUT is insctructed to load the ""message queue"", resulting in it overflowing
+the DUT is insctructed to load the ""scale factor queue"", resulting in it overflowing
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.Do NOT provide any comments, extra remarks, context - only provide a list""",2675,"""[[allocate, 0, 1, 0], [adjacency_write, 0, 1, 63], [message_write, 0, 1, 1], [allocate, 1, 4096, 0], [adjacency_write, 1, 1, 63], [message_write, 1, 4096, 4097], [allocate, 2, 64, 0], [scale_write, 2, 64, 65]]""",117,none,9,"{'adj_dealloc': 3, 'mess_dealloc': 3, 'scale_dealloc': 3, 'adj_nomatch': 14, 'mess_nomatch': 14, 'scale_nomatch': 10, 'mess_fetch_adj_partial': 46, 'mess_nopartial': 29, 'scale_nopartial': 17}"
+21,3,7,2861,"""The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases)
+Do NOT provide any comments, extra remarks, context - only provide a listHere are some of  the unreached bins:
+------
+UNREACHED BINS
+the DUT is insctructed to load the ""message queue"", and there is no overflow on the ""adjacency queue""
+the DUT is insctructed to load the ""message queue"", resulting in it overflowing
+the DUT is insctructed to load the ""scale factor queue"", resulting in it overflowing
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.Do NOT provide any comments, extra remarks, context - only provide a list""",2746,"""[[allocate, 0, 64, 0], [adjacency_write, 0, 1, 63], [message_write, 0, 64, 1], [allocate, 1, 64, 0], [adjacency_write, 1, 1, 63], [message_write, 1, 64, 4097], [allocate, 2, 64, 0], [scale_write, 2, 64, 65]]""",115,reset,9,"{'adj_dealloc': 3, 'mess_dealloc': 3, 'scale_dealloc': 3, 'adj_nomatch': 16, 'mess_nomatch': 16, 'scale_nomatch': 11, 'mess_fetch_adj_partial': 48, 'mess_nopartial': 29, 'scale_nopartial': 17}"
+22,4,1,1510,"""You will receive a description of bins (i.e. test cases) of a testbench for a hardware device under test (DUT).The purpose of this device is to load data on three different queues: an ""adjacency queue"" (depth: 64), a ""message queue"" (depth: 4096), and a ""scale factor queue"" (depth: 64)
+
+----------
+Now, we want to test the DUT with a list of commands as its input. We want the input to cover the bins (i.e. test cases) that we care about. Here's the description of the bins that we care about:
+------
+BINS DESCRIPTION
+- You provide a list of lists, in the format: [string, int, int, int]. The internal lists will be interpreted as sequential instructions for a DUT.
+- The DUT is a device that includes three queues (RAM): an ""adjacency queue"" (depth: 64), a ""message queue"" (depth: 4096), and a ""scale factor queue"" (depth: 64)
+- The actual data the queues are loaded with is not important.
+- The three integers you provide are called:
+    - First integer: ""nodeslot"" (provide a number between 63 and 0)
+    - Second integer: ""feature_count"" (provide a number between 1023 and 1)
+    - Third integer: ""neighbour_count"" (provide a number between 1023 and 1)
+- The string in the internal lists defines the operation performed on the DUT. The operations are as follows:
+    - ""allocate"": you allocate the DUT a ""nodeslot"". You also allocate the DUT a ""feature_count"". ""feature_count"" should be at least 1. Keep note of the nodeslot you allocated to. You will need it to hit the majority of the coverage bins.
+    - ""deallocate"": you deallocate the DUT, it will not be allocated to any ""nodeslot"", and the ""feature_count"" is reset to 0. (do NOT use this often)
+    - ""adjacency_write"": you instruct the DUT to load data into the ""adjacency queue"". You have to provide the ""nodeslot"". The number of items loaded is equal to ""neighbour_count"" divided by 16, rounded up. ""neighbour_count"" should be at least 1.
+    - ""message_write"": you instruct the DUT to load data into the ""adjacency queue"". You have to provide the ""nodeslot"". The number of items loaded is equal to ""neighbour_count"" divided by 16, rounded up, multiplied by the ""feature_count"".
+    - ""scale_write"": you instruct the DUT to load data into the ""scale factor queue"". You have to provide the ""nodeslot"". The number of items loaded is equal to ""neighbour_count"".
+ONLY USE THE ABOVE MENTIONED STRINGS IN YOUR INSTRUCTIONS
+- You need to cover each of the following bins with your commands (an overflow occurs on a queue if the previous instruction tried to load more data on the queue than its depth):
+---
+    - adj_dealloc - the DUT is insctructed to load the ""adjacency queue"", but the DUT was not allocated a ""nodeslot""
+    - mess_dealloc - the DUT is insctructed to load the ""message queue"", but the DUT was not allocated a ""nodeslot""
+    - scale_dealloc - the DUT is insctructed to load the ""scale factor queue"", but the DUT was not allocated a ""nodeslot""
+    - adj_nomatch - the DUT is insctructed to load the ""adjacency queue"", but the ""nodeslot"" provided for this command does not match the ""nodeslot"" allocated to the DUT
+    - mess_nomatch - the DUT is insctructed to load the ""message queue"", but the ""nodeslot"" provided for this command does not match the ""nodeslot"" allocated to the DUT
+    - scale_nomatch - the DUT is insctructed to load the ""scale factor queue"", but the ""nodeslot"" provided for this command does not match the ""nodeslot"" allocated to the DUT
+    - mess_fetch_adj_nopartial - the DUT is insctructed to load the ""message queue"", and there is no overflow on the ""adjacency queue""
+    - mess_fetch_adj_partial - the DUT is insctructed to load the ""message queue"", and there is overflow on the ""adjacency queue""
+    - mess_nopartial - the DUT is insctructed to load the ""message queue"", not resulting in it overflowing
+    - mess_partial - the DUT is insctructed to load the ""message queue"", resulting in it overflowing
+    - scale_nopartial - the DUT is insctructed to load the ""scale factor queue"", not resulting in it overflowing
+    - scale_partial - the DUT is insctructed to load the ""scale factor queue"", resulting in it overflowing
+---
+------
+
+----------
+Following the bins description, generate a list of integer pairs which covers the described bins as much as you can.
+""",1307,"""[[allocate, 15, 64, 0], [adjacency_write, 15, 1, 48], [message_write, 15, 64, 1024], [scale_write, 15, 64, 64], [deallocate, 0, 0, 0], [adjacency_write, 0, 1, 1], [message_write, 0, 1, 1], [scale_write, 0, 1, 1], [allocate, 15, 64, 0], [adjacency_write, 16, 1, 48], [message_write, 15, 64, 4096], [scale_write, 15, 65, 64], [message_write, 15, 64, 4097], [scale_write, 15, 64, 65]]""",203,none,9,"{'adj_dealloc': 4, 'mess_dealloc': 4, 'scale_dealloc': 4, 'adj_nomatch': 17, 'mess_nomatch': 16, 'scale_nomatch': 11, 'mess_fetch_adj_partial': 52, 'mess_nopartial': 32, 'scale_nopartial': 20}"
+23,4,2,1804,"""The values you provided failed to cover all the bins.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases)
+Do NOT provide any comments, extra remarks, context - only provide a listHere are some of the unreached bins:
+------
+UNREACHED BINS
+the DUT is insctructed to load the ""message queue"", and there is no overflow on the ""adjacency queue""
+the DUT is insctructed to load the ""message queue"", resulting in it overflowing
+the DUT is insctructed to load the ""scale factor queue"", resulting in it overflowing
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.Do NOT provide any comments, extra remarks, context - only provide a list""",1703,"""[[allocate, 15, 64, 0], [adjacency_write, 15, 1, 16], [message_write, 15, 64, 1024], [allocate, 15, 64, 0], [message_write, 15, 64, 4097], [allocate, 15, 64, 0], [scale_write, 15, 64, 65]]""",101,none,9,"{'adj_dealloc': 4, 'mess_dealloc': 4, 'scale_dealloc': 4, 'adj_nomatch': 17, 'mess_nomatch': 16, 'scale_nomatch': 11, 'mess_fetch_adj_partial': 54, 'mess_nopartial': 34, 'scale_nopartial': 21}"
+24,4,3,2105,"""The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases)
+Do NOT provide any comments, extra remarks, context - only provide a listHere are some of  the unreached bins:
+------
+UNREACHED BINS
+the DUT is insctructed to load the ""message queue"", and there is no overflow on the ""adjacency queue""
+the DUT is insctructed to load the ""message queue"", resulting in it overflowing
+the DUT is insctructed to load the ""scale factor queue"", resulting in it overflowing
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.Do NOT provide any comments, extra remarks, context - only provide a list""",2016,"""[[allocate, 0, 64, 0], [adjacency_write, 0, 63, 1008], [message_write, 0, 64, 1024], [message_write, 0, 64, 4097], [allocate, 1, 64, 0], [scale_write, 1, 64, 65]]""",89,none,9,"{'adj_dealloc': 4, 'mess_dealloc': 4, 'scale_dealloc': 4, 'adj_nomatch': 18, 'mess_nomatch': 18, 'scale_nomatch': 12, 'mess_fetch_adj_partial': 56, 'mess_nopartial': 34, 'scale_nopartial': 21}"
+25,4,4,2405,"""The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases)
+Do NOT provide any comments, extra remarks, context - only provide a listHere are some of  the unreached bins:
+------
+UNREACHED BINS
+the DUT is insctructed to load the ""message queue"", and there is no overflow on the ""adjacency queue""
+the DUT is insctructed to load the ""message queue"", resulting in it overflowing
+the DUT is insctructed to load the ""scale factor queue"", resulting in it overflowing
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.Do NOT provide any comments, extra remarks, context - only provide a list""",2317,"""[[allocate, 0, 64, 0], [adjacency_write, 0, 4, 64], [message_write, 0, 64, 1024], [message_write, 0, 64, 4097], [allocate, 1, 64, 0], [scale_write, 1, 64, 65]]""",88,none,9,"{'adj_dealloc': 4, 'mess_dealloc': 4, 'scale_dealloc': 4, 'adj_nomatch': 19, 'mess_nomatch': 20, 'scale_nomatch': 13, 'mess_fetch_adj_partial': 58, 'mess_nopartial': 34, 'scale_nopartial': 21}"
+26,4,5,2706,"""The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases)
+Do NOT provide any comments, extra remarks, context - only provide a listHere are some of  the unreached bins:
+------
+UNREACHED BINS
+the DUT is insctructed to load the ""message queue"", and there is no overflow on the ""adjacency queue""
+the DUT is insctructed to load the ""message queue"", resulting in it overflowing
+the DUT is insctructed to load the ""scale factor queue"", resulting in it overflowing
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.Do NOT provide any comments, extra remarks, context - only provide a list""",2617,"""[[allocate, 0, 64, 0], [adjacency_write, 0, 63, 1008], [message_write, 0, 64, 1024], [message_write, 0, 64, 4097], [allocate, 1, 64, 0], [scale_write, 1, 64, 65]]""",89,none,9,"{'adj_dealloc': 4, 'mess_dealloc': 4, 'scale_dealloc': 4, 'adj_nomatch': 20, 'mess_nomatch': 22, 'scale_nomatch': 14, 'mess_fetch_adj_partial': 60, 'mess_nopartial': 34, 'scale_nopartial': 21}"

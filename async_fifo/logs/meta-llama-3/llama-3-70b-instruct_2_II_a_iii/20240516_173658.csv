@@ -1,0 +1,51 @@
+Model,meta-llama/llama-3-70b-instruct,SYSTEM,"Please provide a list of lists, in the format: [[int, int, int], [int, int, int], ...]In each sublist of three integers:The first integer should be between 1 and 1000.The second integer should be between 0 and 1.The third integer should be between 0 and 1.Example: [[30, 1, 0], [10, 0, 0]]Do NOT provide any comments, extra remarks, context - only provide a list",temperature,0.4,top_p,1,Prompter,TemplatePromptGeneratorAF,Extractor,UniversalExtractor
+Total Message#,Dialog #,Message #,Total Token Cnt,USER,Input Token Cnt,ASSISTANT,Output Token Cnt,Action,Coverage Rate,Coverage Plan
+1,1,1,814,"""You will receive a description of bins (i.e. test cases) of a testbench for a hardware device under test (DUT).
+----------
+Now, we want to test the DUT with a list of commands as its input. We want the input to cover the bins (i.e. test cases) that we care about. Here's the description of the bins that we care about:
+------
+BINS DESCRIPTION
+- You provide a list of lists, in the format: [int, int, int]. The internal lists will be interpreted as sequential instructions for a DUT.
+- The DUT is an asynchronous fifo used for clock domain crossings. The pointers are in gray code, and the MSB of the pointers indicate a ""wrap"", used to determine whether the FIFO is empty or full.
+- The read clock has a period of 13ns, the write clock has a period of 10ns.
+- The three integers in each command will be interpreted as follows:
+    - First integer: how long to ""hold"" the current command in nanoseconds. The value should be between 1 and 1000.
+    - Second integer: if it is 1, read operations occur. The value should be 0 or 1.
+    - Third integer: if it is 1, write operations occur. The value should be 0 or 1.
+- You need to cover each of the following bins with your commands:
+---
+    - full_read_wrap: the read pointer wraps to 0.
+    - gray_read_wrap: the MSB of the read pointer toggles.
+    - underflow: a read operation is requested while the FIFO is empty
+    - empty: the FIFO is empty
+    - read_while_write: on read clock edge a read operation is performed, while a write operation is being requested as well
+    - full_write_wrap: the write pointer wraps to 0.
+    - gray_write_wrap: the MSB of the write pointer toggles.
+    - overflow: a write operation is requested while the FIFO is full
+    - full: the FIFO is full
+    - write_while_read: on write clock edge a write operation is performed, while a read operation is being requested as well
+---
+------
+
+----------
+Following the bins description, generate a list of integer pairs which covers the described bins as much as you can.
+""",643,"""[[100, 1, 0], [10, 1, 0], [5, 1, 0], [5, 0, 0], [10, 1, 1], [100, 0, 1], [10, 0, 1], [5, 0, 1], [5, 0, 0], [10, 1, 1], [100, 1, 0], [10, 0, 1], [5, 1, 1], [5, 1, 0], [10, 0, 1], [100, 0, 1], [10, 1, 1], [5, 0, 1], [5, 0, 0]]""",171,none,6,"{'gray_write_wrap': 1, 'underflow': 9, 'overflow': 3, 'full': 1, 'read_while_write': 4, 'write_while_read': 4}"
+2,1,2,1035,"""The values you provided failed to cover all the bins.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases)
+Here are some of the unreached bins:
+------
+UNREACHED BINS
+the read pointer wraps to 0.
+the MSB of the read pointer toggles.
+the write pointer wraps to 0.
+the FIFO is empty.
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.""",963,"""[[200, 1, 0], [150, 1, 0], [120, 0, 0], [100, 0, 0], [300, 1, 0], [250, 1, 0], [200, 0, 1], [150, 0, 1]]""",72,none,9,"{'gray_read_wrap': 1, 'full_write_wrap': 1, 'gray_write_wrap': 2, 'underflow': 62, 'overflow': 21, 'full': 2, 'empty': 1, 'read_while_write': 4, 'write_while_read': 4}"
+3,1,3,1197,"""The values you provided failed to cover all the bins.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases)
+Here are some of the unreached bins:
+------
+UNREACHED BINS
+the read pointer wraps to 0.
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.""",1161,"""[[400, 1, 0], [400, 1, 0], [399, 1, 0], [401, 1, 0]]""",36,done,10,"{'full_read_wrap': 1, 'gray_read_wrap': 2, 'full_write_wrap': 1, 'gray_write_wrap': 2, 'underflow': 76, 'overflow': 21, 'full': 2, 'empty': 2, 'read_while_write': 4, 'write_while_read': 4}"
