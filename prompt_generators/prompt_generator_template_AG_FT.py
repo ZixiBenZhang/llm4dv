@@ -21,6 +21,7 @@ class TemplatePromptGeneratorAG_FT(TemplatePromptGenerator):
     def generate_system_prompt(self) -> str:
         return (
             "Please provide a list of lists, in the format: [[string, int, int, int], [string, int, int, int], ...]."
+            f"Any text outside this format is not allowed."
             f"The first integer should be between 0 and 63, the other two between 0 and 1023."
             f"Example: [[allocate, 15, 64, 0], [adjacency_write, 15, 1, 48]]"
             f"Do NOT provide any comments, extra remarks, context - only provide a list"
@@ -58,11 +59,11 @@ class TemplatePromptGeneratorAG_FT(TemplatePromptGenerator):
                 f"DUT CODE\n"
                 f"{dut_code}\n"
                 f"------\n"
-                f"I also have a testbench for the DUT. Here's the Python code of the testbench:\n"
-                f"------\n"
-                f"TESTBENCH CODE\n"
-                f"{tb_code}\n"
-                f"------\n"
+                # f"I also have a testbench for the DUT. Here's the Python code of the testbench:\n"
+                # f"------\n"
+                # f"TESTBENCH CODE\n"
+                # f"{tb_code}\n"
+                # f"------\n"
             )
             return dut_summary
         else:
@@ -98,6 +99,8 @@ class TemplatePromptGeneratorAG_FT(TemplatePromptGenerator):
                 "Your response doesn't answer my query. \n"
                 f"Please provide a list of lists, in the format: [[string, int, int, int], [string, int, int, int], ...]."
                 f"Example: [[deallocate, 0, 0, 0], [allocate, 15, 64, 0]]"
+                f"Any text outside this format is not allowed."
+                f"Do NOT provide any comments, extra remarks, context - only provide a list"
                 f"Here are {'some of ' if self.sampling_missed_bins else ''}the unreached bins:\n"
             )
 
@@ -107,6 +110,7 @@ class TemplatePromptGeneratorAG_FT(TemplatePromptGenerator):
                 "much of the described bins as you can.\n"
                 "You will see the result coverage of your previous response(s), and then "
                 "generate another list of integer pairs to cover the unreached bins (i.e. test cases)\n"
+                f"Do NOT provide any comments, extra remarks, context - only provide a list"
                 f"Here are {'some of ' if self.sampling_missed_bins else ''} the unreached bins:\n"
             )
 
@@ -115,24 +119,25 @@ class TemplatePromptGeneratorAG_FT(TemplatePromptGenerator):
                 "The values you provided failed to cover all the bins.\n"
                 "You will see the result coverage of your previous response(s), and then "
                 "generate another list of integer pairs to cover the unreached bins (i.e. test cases)\n"
+                f"Do NOT provide any comments, extra remarks, context - only provide a list"
                 f"Here are {'some of ' if self.sampling_missed_bins else ''}the unreached bins:\n"
             )
         return result_summary
 
     def _load_coverage_difference_prompts_dict(self) -> Dict[str, str]:
         coverage_difference_template = {
-            f"adj_dealloc": f"the DUT is insctructed to load the \"adjacency queue\", but the DUT was not allocated a \"nodeslot\"  TIP: deallocate, then try to adjacency_write\n",
-            f"mess_dealloc": f"the DUT is insctructed to load the \"message queue\", but the DUT was not allocated a \"nodeslot\" TIP: deallocate, then try to message_write\n",
-            f"scale_dealloc": f"the DUT is insctructed to load the \"scale factor queue\", but the DUT was not allocated a \"nodeslot\" TIP: deallocate, then try to scale_write\n",
-            f"adj_nomatch": f"the DUT is insctructed to load the \"adjacency queue\", but the \"nodeslot\" provided for this command does not match the \"nodeslot\" allocated to the DUT TIP: the first integer in your adjacency_write instruction should be different than the nodeslot you allocated the DUT to\n",
-            f"mess_nomatch": f"the DUT is insctructed to load the \"message queue\", but the \"nodeslot\" provided for this command does not match the \"nodeslot\" allocated to the DUT TIP: the first integer in your message_write instruction should be different than the nodeslot you allocated the DUT to\n",
-            f"scale_nomatch": f"the DUT is insctructed to load the \"scale factor queue\", but the \"nodeslot\" provided for this command does not match the \"nodeslot\" allocated to the DUT TIP: the first integer in your scale_write instruction should be different than the nodeslot you allocated the DUT to\n",
-            f"mess_fetch_adj_nopartial": f"the DUT is insctructed to load the \"message queue\", and there is no overflow on the \"adjacency queue\" TIP: Do an adjacency_write with a low \"neighbour_count\" value, then do a message_write\n",
-            f"mess_fetch_adj_partial": f"the DUT is insctructed to load the \"message queue\", and there is overflow on the \"adjacency queue\" TIP: Do an adjacency_write with a very high \"neighbour_count\" value, then do a message_write\n",
-            f"mess_nopartial": f"the DUT is insctructed to load the \"message queue\", not resulting in it overflowing TIP: do an adjacency_write with a low neighbour_count, then do a message_write\n",
-            f"mess_partial": f"the DUT is insctructed to load the \"message queue\", resulting in it overflowing TIP: do an adjacency_write with a high neighbour_count, then do a message_write\n",
-            f"scale_nopartial": f"the DUT is insctructed to load the \"scale factor queue\", not resulting in it overflowing TIP: do a scale_write with a low neighbour_count\n",
-            f"scale_partial": f"the DUT is insctructed to load the \"scale factor queue\", resulting in it overflowing TIP: do a scale_write with a very high neighbour_count\n",
+            f"adj_dealloc": f"the DUT is insctructed to load the \"adjacency queue\", but the DUT was not allocated a \"nodeslot\"\n",
+            f"mess_dealloc": f"the DUT is insctructed to load the \"message queue\", but the DUT was not allocated a \"nodeslot\"\n",
+            f"scale_dealloc": f"the DUT is insctructed to load the \"scale factor queue\", but the DUT was not allocated a \"nodeslot\"\n",
+            f"adj_nomatch": f"the DUT is insctructed to load the \"adjacency queue\", but the \"nodeslot\" provided for this command does not match the \"nodeslot\" allocated to the DUT\n",
+            f"mess_nomatch": f"the DUT is insctructed to load the \"message queue\", but the \"nodeslot\" provided for this command does not match the \"nodeslot\" allocated to the DUT\n",
+            f"scale_nomatch": f"the DUT is insctructed to load the \"scale factor queue\", but the \"nodeslot\" provided for this command does not match the \"nodeslot\" allocated to the DUT\n",
+            f"mess_fetch_adj_nopartial": f"the DUT is insctructed to load the \"message queue\", and there is no overflow on the \"adjacency queue\"\n",
+            f"mess_fetch_adj_partial": f"the DUT is insctructed to load the \"message queue\", and there is overflow on the \"adjacency queue\"\n",
+            f"mess_nopartial": f"the DUT is insctructed to load the \"message queue\", not resulting in it overflowing\n",
+            f"mess_partial": f"the DUT is insctructed to load the \"message queue\", resulting in it overflowing\n",
+            f"scale_nopartial": f"the DUT is insctructed to load the \"scale factor queue\", not resulting in it overflowing\n",
+            f"scale_partial": f"the DUT is insctructed to load the \"scale factor queue\", resulting in it overflowing\n",
         }
         return coverage_difference_template
 
@@ -142,10 +147,13 @@ class TemplatePromptGeneratorAG_FT(TemplatePromptGenerator):
                 "Your response doesn't answer my query.\n"
                 "Please provide a list of lists, in the format: [[string, int, int, int], [string, int, int, int], ...]."
                 f"Example: [[deallocate, 0, 0, 0], [allocate, 15, 64, 0]]"
+                f"Any text outside this format is not allowed."
+                f"Do NOT provide any comments, extra remarks, context - only provide a list"
             )
         else:
             iter_question = (
                 "Please regenerate commands for the still unreached bins "
                 "according to the BINS DESCRIPTION."
+                f"Do NOT provide any comments, extra remarks, context - only provide a list"
             )
         return iter_question

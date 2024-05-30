@@ -513,5 +513,51 @@ always_ff @(posedge core_clk or negedge resetn) begin
     end
 end
 
+`ifdef FORMAL
+    logic [3:0] cycle_count;
+    
+    initial begin 
+        assume(!resetn)
+        cycle_count <= 0;
+    end
 
+    always @(posedge core_clk) begin
+        if (cycle_count < 10)
+            cycle_count <= cycle_count + 1;
+    end
+
+    assume property ( @(posedge core_clk) cycle_count < 5 |-> !resetn );
+    assume property ( @(posedge core_clk) cycle_count > 4 |-> resetn );
+
+    always @(posedge core_clk) begin
+        if(resetn) begin
+            if(nsb_prefetcher_req_valid) begin
+                if(nsb_prefetcher_req.req_opcode == 1) begin: req_adj_write
+                    adj_dealloc: cover (tag_free);
+                    adj_nomatch: cover (~(tag_free) & (allocated_nodeslot != nsb_prefetcher_req.nodeslot));
+                end else if(nsb_prefetcher_req.req_opcode == 2) begin: req_message_write
+                    mess_fetch_adj_nopartial: cover (adj_queue_manager_i.issue_partial_done);
+                    mess_fetch_adj_partial: cover (~adj_queue_manager_i.issue_partial_done);
+
+                    mess_dealloc: cover (tag_free);
+                    mess_nomatch: cover (~(tag_free) & (allocated_nodeslot != nsb_prefetcher_req.nodeslot));
+                    if (~(~trigger_msg_partial_resp & message_fetch_state != 4 & ~message_queue_full)) begin
+                        mess_nopartial: cover (~trigger_msg_partial_resp);
+                        mess_partial: cover (trigger_msg_partial_resp);
+                    end
+                end else if(nsb_prefetcher_req.req_opcode == 3) begin: req_scale_write
+                    scale_dealloc: cover (tag_free);
+                    scale_nomatch: cover (~(tag_free) & (allocated_nodeslot != nsb_prefetcher_req.nodeslot));
+                    if (~(~scale_factor_fetch_resp_valid & 
+                    ~scale_factor_queue_manager.issue_partial_done & 
+                    ~scale_factor_queue_full & 
+                    scale_factor_queue_manager.fetch_state != 0)) begin
+                        scale_nopartial: cover (~scale_factor_queue_manager.issue_partial_done);
+                        scale_partial: cover (scale_factor_queue_manager.issue_partial_done);
+                    end
+                end
+            end
+        end
+    end
+`endif
 endmodule
