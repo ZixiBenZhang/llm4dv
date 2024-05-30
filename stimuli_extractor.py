@@ -70,6 +70,9 @@ class ICExtractor(BaseExtractor):
         super().__init__()
 
     def __call__(self, text: str) -> List[Tuple[int, int]]:
+        print(text)
+        if(text[-1] != "]"):
+            text = "),".join(text.split("),")[:-1]) + ")]"
         pairs: List[str] = list(
             re.findall(r"\(\"?'?0x[\da-fA-F]+'?\"?, ?\"?'?0x[\da-fA-F]+'?\"?\)", text, re.I)
         )
@@ -92,15 +95,21 @@ class UniversalExtractor(BaseExtractor):
         self.stim_seq_length = stim_seq_length
 
     def __call__(self, text):
+        print("===============================")
+        print(text)
         stimuli = []
-        stim_str = text.replace("(", "").replace(")", "").replace('"', "").replace("'", "").replace("[", "").replace(" ", "").replace("]", "").replace("\n", "").split(",")
+        if("[" in text):
+            text = "[".join(text.split("[")[1:])
+        stim_str = text.replace("*", "").replace("(", "").replace(")", "").replace('"', "").replace("'", "").replace("[", "").replace(" ", "").replace("]", "").replace("\n", "").split(",")
         i = 0
-        while ((i + self.stim_seq_length - 1) < len(stim_str)-1):
+        while ((i + self.stim_seq_length - 1) <= len(stim_str)-1):
             current_stimulus = []
             for j  in range(self.stim_seq_length):
                 current_stimulus.append(stim_str[i+j])
             stimuli.append(current_stimulus)
             i += self.stim_seq_length
+        print(stimuli)
+        print("================================")
         return stimuli
     
     def reset(self):

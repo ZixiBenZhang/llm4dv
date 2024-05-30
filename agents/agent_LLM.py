@@ -30,6 +30,7 @@ class LLMAgent(BaseAgent):
         dialog_bound: int = 650,
         rst_plan: Callable[..., bool] = None,
         token_budget: Union[Budget, None] = None,
+        bin_count = 0
     ):
         super().__init__()
         self.prompt_generator = prompt_generator
@@ -54,6 +55,7 @@ class LLMAgent(BaseAgent):
         self.all_history_cov_rate = []
 
         self.token_budget: Union[Budget, None] = token_budget
+        self.bin_count = bin_count
 
     def reset(self):
         self.log_reset()
@@ -164,7 +166,7 @@ class LLMAgent(BaseAgent):
             # Restart a dialog if low-efficient (nearly converged)
             self.history_cov_rate.append(coverage_database.get_coverage_rate()[0])
             self.all_history_cov_rate.append(coverage_database.get_coverage_rate()[0])
-            if self.rst_plan(self.history_cov_rate, self.all_history_cov_rate):
+            if self.rst_plan(self.history_cov_rate, self.all_history_cov_rate, self.bin_count):
                 self.reset()
                 print("\n>>>>> Agent reset <<<<<\n")
             else:
@@ -206,7 +208,7 @@ class LLMAgent(BaseAgent):
                 self.all_history_cov_rate.append(
                     coverage_database.get_coverage_rate()[0]
                 )
-                if self.rst_plan(self.history_cov_rate, self.all_history_cov_rate):
+                if self.rst_plan(self.history_cov_rate, self.all_history_cov_rate, self.bin_count):
                     self.reset()
                     f_ = 0
                     print("\n>>>>> Agent reset <<<<<\n")
@@ -277,7 +279,6 @@ class LLMAgent(BaseAgent):
             if gibberish:
                 f_ = 1
                 continue
-
             stimuli = self.stimulus_filter(self.extractor(response))
 
             update_invalid = self._check_update_invalid(response, stimuli)
@@ -309,9 +310,9 @@ class LLMAgent(BaseAgent):
         self, response: str, stimuli: List[List[Tuple[int, int]]]
     ) -> bool:
         # print(f"checking invalid update: response {len(response)}, stimuli[0] {len(stimuli[0])}")
-        if not isinstance(self.stimulus_filter, ICFilter):
-            return False
-        return len(stimuli[0]) == 0 and len(response) > 10
+        # print(stimuli)
+        # return len(stimuli[0]) == 0 and len(response) > 10
+        return False
 
     def log_headers(self):
         for logger in self.loggers:
@@ -421,21 +422,21 @@ class LLMAgent(BaseAgent):
 """Dialogue restarting plans"""
 
 
-def rst_plan_Normal_Tolerance(cov_hist: List[int], all_cov_hist: List[int]) -> bool:
+def rst_plan_Normal_Tolerance(cov_hist: List[int], all_cov_hist: List[int], bin_count: int) -> bool:
     # Normal Tolerance
     epsilon = 3
     period = 7
     return len(cov_hist) >= period and cov_hist[-1] - cov_hist[-period] < epsilon
 
 
-def rst_plan_Low_Tolerance(cov_hist: List[int], all_cov_hist: List[int]) -> bool:
+def rst_plan_Low_Tolerance(cov_hist: List[int], all_cov_hist: List[int], bin_count: int) -> bool:
     # Low Tolerance
     epsilon = 3
     period = 4
     return len(cov_hist) >= period and cov_hist[-1] - cov_hist[-period] < epsilon
 
 
-def rst_plan_High_Tolerance(cov_hist: List[int], all_cov_hist: List[int]) -> bool:
+def rst_plan_High_Tolerance(cov_hist: List[int], all_cov_hist: List[int], bin_count: int) -> bool:
     # High Tolerance, for IDADAS and IDAdaNew missed-bin sampling
     epsilon = 3
     period = 10
@@ -443,18 +444,18 @@ def rst_plan_High_Tolerance(cov_hist: List[int], all_cov_hist: List[int]) -> boo
 
 
 def rst_plan_Coverage_RateBased_Tolerance(
-    cov_hist: List[int], all_cov_hist: List[int]
+    cov_hist: List[int], all_cov_hist: List[int], bin_count: int
 ) -> bool:
     # Coverage Rate-based Tolerance for Ibex decoder bins
     epsilon = 3
-    if all_cov_hist[-1] < 300:
+    if all_cov_hist[-1] < 0.2*bin_count:
         period = 4
     else:
         period = 7
     return len(cov_hist) >= period and cov_hist[-1] - cov_hist[-period] < epsilon
 
 
-def rst_plan_IDAvoidConverge(cov_hist: List[int], all_cov_hist: List[int]) -> bool:
+def rst_plan_IDAvoidConverge(cov_hist: List[int], all_cov_hist: List[int], bin_count: int) -> bool:
     # If no new hits (nearly exhausted), FAST restart
     epsilon = 3
     t = 14
@@ -467,7 +468,7 @@ def rst_plan_IDAvoidConverge(cov_hist: List[int], all_cov_hist: List[int]) -> bo
     return len(cov_hist) >= period and cov_hist[-1] - cov_hist[-period] < epsilon
 
 
-def rst_plan_IDAdaAvoidConverge(cov_hist: List[int], all_cov_hist: List[int]) -> bool:
+def rst_plan_IDAdaAvoidConverge(cov_hist: List[int], all_cov_hist: List[int], bin_count: int) -> bool:
     # FAST restart when low coverage rate & when no new hits
     epsilon = 3
     t = 15

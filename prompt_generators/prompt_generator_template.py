@@ -17,6 +17,8 @@ class TemplatePromptGenerator(BasePromptGenerator, ABC):
         bin_descr_path: str,
         code_summary_type: int = 0,  # 0: no code, 1: code, 2: summary
         sampling_missed_bins_method: Union[str, None] = None,
+        easy_cutoff: int = 100,
+        few_shot: int = 0
     ):
         super().__init__()
         self.code_summary_type = code_summary_type
@@ -38,9 +40,13 @@ class TemplatePromptGenerator(BasePromptGenerator, ABC):
             self._load_coverage_difference_prompts_dict()
         )
 
+        self.easy_cutoff = easy_cutoff
+        self.few_shot = few_shot
+
     def _resolve_sampling_method(self, sampling_missed_bins_method: Union[str, None]):
         methods = [
             "ORIGINAL",
+            "MIXED",
             "NEWEST",
             "RANDOM",
             "IDNEWEST",
@@ -50,7 +56,8 @@ class TemplatePromptGenerator(BasePromptGenerator, ABC):
         ]
         method_mapping = {
             "Pure Random Sampling": "RANDOM",
-            "Coverpoint Type-based Sampling for prefetcher": "NEWEST",
+            "Coverpoint Type-based Sampling": "NEWEST",
+            "Mixed Coverpoint Type-based and Pure Random Sampling": "MIXED",
             "Coverpoint Type-based Sampling for decoder": "IDNEWEST",
             "Mixed Coverpoint Type-based and Pure Random Sampling for decoder": "IDADANEW",
             "Coverpoint Type-based Sampling for cpu": "ICNEWEST",
@@ -63,29 +70,17 @@ class TemplatePromptGenerator(BasePromptGenerator, ABC):
             f"Otherwise please specify one of the following method names: {method_mapping.keys()}. "
         )
         if type(sampling_missed_bins_method) is str:
-            if sampling_missed_bins_method.upper() == "ORIGINAL":
+            if sampling_missed_bins_method.upper() == "RANDOM":
                 self.sampling_missed_bins_method = (
-                    self._sample_missed_bins_ORIGINAL_degraded
+                    self._sample_missed_bins_RANDOM
                 )
             elif sampling_missed_bins_method.upper() == "NEWEST":
                 self.sampling_missed_bins_method = (
-                    self._sample_missed_bins_Coverpoint_TypeBased_Sampling_prefetcher
+                    self._sample_missed_bins_Coverpoint_TypeBased_Universal
                 )
-            elif sampling_missed_bins_method.upper() == "RANDOM":
-                self.sampling_missed_bins_method = self._sample_missed_bins_RANDOM
-            elif sampling_missed_bins_method.upper() == "IDNEWEST":
+            elif sampling_missed_bins_method.upper() == "MIXED":
                 self.sampling_missed_bins_method = (
-                    self._sample_missed_bins_Coverpoint_TypeBased_Sampling_decoder
-                )
-            elif sampling_missed_bins_method.upper() == "IDADAS":
-                self.sampling_missed_bins_method = self._sample_missed_bins_IDADAS
-            elif sampling_missed_bins_method.upper() == "IDADANEW":
-                self.sampling_missed_bins_method = (
-                    self._sample_missed_bins_Mixed_Coverpoint_TypeBased_Random_Sampling_decoder
-                )
-            elif sampling_missed_bins_method.upper() == "ICNEWEST":
-                self.sampling_missed_bins_method = (
-                    self._sample_missed_bins_Coverpoint_TypeBased_Sampling_cpu
+                    self._sample_missed_bins_Mixed_Universal
                 )
             else:
                 raise ValueError(
@@ -165,7 +160,7 @@ class TemplatePromptGenerator(BasePromptGenerator, ABC):
         # Sampling missed bins
         if self.sampling_missed_bins:
             missed_bins = self.sampling_missed_bins_method(
-                missed_bins, coverage_database.get_coverage_rate()
+                missed_bins, coverage_database.get_coverage_rate(), self.easy_cutoff
             )
 
         for bin_name in missed_bins:
@@ -236,7 +231,7 @@ class TemplatePromptGenerator(BasePromptGenerator, ABC):
 
     @staticmethod
     def _sample_missed_bins_RANDOM(
-        missed_bins: List[str], coverage_rate: Tuple[int, int]
+        missed_bins: List[str], coverage_rate: Tuple[int, int], easy_cutoff: int
     ) -> List[str]:
         # RANDOM: Pure Random Sampling
         if len(missed_bins) >= 40:
@@ -246,6 +241,86 @@ class TemplatePromptGenerator(BasePromptGenerator, ABC):
         else:
             pass
         return missed_bins
+    
+    @staticmethod
+    def _sample_missed_bins_Coverpoint_TypeBased_Universal(
+        missed_bins: List[str], coverage_rate: Tuple[int, int], easy_cutoff: int
+    ) -> List[str]:
+        if len(missed_bins) >= 40:
+            if coverage_rate[0] / coverage_rate[1] <= 1 / 20:  # easier bins
+                missed_bins = np.concatenate(
+                    [
+                        missed_bins[:2],
+                        np.random.choice(missed_bins[2:easy_cutoff], 3, replace=False),
+                        np.random.choice(missed_bins[easy_cutoff:], 2, replace=False),
+                    ]
+                )
+            else:  # harder bins
+                missed_bins = np.concatenate(
+                    [
+                        missed_bins[:2],
+                        np.random.choice(missed_bins[2:], 5, replace=False),
+                    ]
+                )
+        elif len(missed_bins) > 7:
+            missed_bins = np.concatenate(
+                [missed_bins[:2], np.random.choice(missed_bins[2:], 5, replace=False)]
+            )
+        else:
+            pass
+        return missed_bins
+    
+    def _sample_missed_bins_Mixed_Universal(
+        self, missed_bins: List[str], coverage_rate: Tuple[int, int], easy_cutoff: int
+    ) -> List[str]:
+        def sample_determ(_missed_bins):
+            return np.concatenate(
+                [_missed_bins[:2], np.random.choice(_missed_bins[2:], 5, replace=False)]
+            )
+
+        def sample_mild_determ(_missed_bins):
+            return np.concatenate(
+                [
+                    _missed_bins[:2],
+                    np.random.choice(_missed_bins[2:easy_cutoff], 3, replace=False),
+                    np.random.choice(_missed_bins[easy_cutoff:], 2, replace=False),
+                ]
+            )
+
+        def sample_random(_missed_bins):
+            return np.random.choice(_missed_bins, 7, replace=False)
+
+        epsilon = 3
+
+        def resolve_strategy() -> Callable:
+            if self.cur_sampling_method is None:
+                return sample_mild_determ
+            if len(self.adas_cov_hist) < 4:
+                return self.cur_sampling_method
+            if self.adas_cov_hist[-1] - self.adas_cov_hist[-4] < epsilon:
+                self.adas_cov_hist.clear()
+                if self.cur_sampling_method.__name__ == sample_mild_determ.__name__:
+                    print("Sampling: mild determ -> determ\n")
+                    return sample_determ
+                if self.cur_sampling_method.__name__ == sample_random.__name__:
+                    print("Sampling: random -> determ\n")
+                    return sample_determ
+                if self.cur_sampling_method.__name__ == sample_determ.__name__:
+                    print("Sampling: determ -> random\n")
+                    return sample_random
+            else:
+                return self.cur_sampling_method
+
+        if coverage_rate[0] / coverage_rate[1] <= 1 / 5:
+            self.cur_sampling_method = sample_mild_determ
+        elif len(missed_bins) >= 40:
+            self.cur_sampling_method = resolve_strategy()
+        elif len(missed_bins) >= 7:
+            self.cur_sampling_method = sample_random
+        else:
+            self.cur_sampling_method = list
+
+        return self.cur_sampling_method(missed_bins)
 
     @staticmethod
     def _sample_missed_bins_Coverpoint_TypeBased_Sampling_decoder(

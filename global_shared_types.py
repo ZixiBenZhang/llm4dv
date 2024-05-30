@@ -25,6 +25,14 @@ from agile_prefetcher.prefetcher.shared_types import DUTState as AG_PRDS
 from async_fifo.shared_types import CoverageDatabase as AFCD
 from async_fifo.shared_types import DUTState as AFDS
 
+#SDRAM controller
+from sdram_controller.shared_types import CoverageDatabase as SDRAMCD
+from sdram_controller.shared_types import DUTState as SDRAMDS
+
+#MIPS CPU
+from mips_cpu.shared_types import CoverageDatabase as MCCD
+from mips_cpu.shared_types import MipsStateInfo as MCDS
+
 AG_WB_BOUND = 64
 
 class GlobalCoverageDatabase:
@@ -45,7 +53,7 @@ class GlobalCoverageDatabase:
             self._coverage_database: SDCD
         elif isinstance(coverage, IDCD):
             self._coverage_database: IDCD
-        elif isinstance(coverage, ICCD):
+        elif (isinstance(coverage, MCCD) or isinstance(coverage, ICCD)):
             self._coverage_database: ICCD
         elif isinstance(coverage, AG_PRCD):
             self._coverage_database: AG_PRCD
@@ -55,6 +63,8 @@ class GlobalCoverageDatabase:
             self._coverage_database: AG_WBCD
         elif isinstance(coverage, AFCD):
             self._coverage_database: AFCD
+        elif isinstance(coverage, SDRAMCD):
+            self._coverage_database: SDRAMCD
         elif coverage is None:
             pass
         else:
@@ -77,11 +87,17 @@ class GlobalCoverageDatabase:
             return self._get_coverage_plan_AG_PRCD()
         elif isinstance(self._coverage_database, AFCD):
             return self._get_coverage_plan_AFCD()
+        elif isinstance(self._coverage_database, SDRAMCD):
+            return self._get_coverage_plan_SDRAMCD()
         else:
             raise TypeError(
                 f"coverage_database of type {type(self._coverage_database)} not supported."
             )
         
+    def _get_coverage_plan_SDRAMCD(self) -> Dict[str, int]:
+        coverage_plan = self._coverage_database.misc_bins
+        return coverage_plan
+
     def _get_coverage_plan_AFCD(self) -> Dict[str, int]:
         coverage_plan = self._coverage_database.misc_bins
         return coverage_plan
@@ -261,6 +277,13 @@ class GlobalCoverageDatabase:
                 return len(coverage)
             # TODO: Prioritise harder bins?
             return len(coverage)
+        elif isinstance(self._coverage_database, SDRAMCD):
+            coverage_plan = self._get_coverage_plan_SDRAMCD()
+            coverage = [k for (k, v) in coverage_plan.items() if v > 0]
+            if not prioritise_harder_bins:  # without prioritising harder bins
+                return len(coverage)
+            # TODO: Prioritise harder bins?
+            return len(coverage)
         else:
             raise TypeError(
                 f"coverage_database of type {type(self._coverage_database)} not supported."
@@ -284,7 +307,7 @@ class GlobalDUTState:
 
         if isinstance(dut_state, SDDS):
             self._dut_state: SDDS
-        elif isinstance(dut_state, ICDS):
+        elif isinstance(dut_state, ICDS) or isinstance(dut_state, MCDS):
             self._dut_state: ICDS
         elif isinstance(dut_state, AG_WBDS):
             self._dut_state: AG_WBDS
@@ -294,6 +317,8 @@ class GlobalDUTState:
             self._dut_state: AG_PRDS
         elif isinstance(dut_state, AFDS):
             self._dut_state: AFDS
+        elif isinstance(dut_state, SDRAMDS):
+            self._dut_state: SDRAMDS
         elif dut_state is None:
             pass
         else:

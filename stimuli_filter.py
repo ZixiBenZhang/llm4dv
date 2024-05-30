@@ -64,18 +64,28 @@ class ICFilter(BaseFilter):
         )]
 
 class UniversalFilter(BaseFilter):
-    def __init__(self, bound_list):
+    def __init__(self, bound_list, hex_format = False):
         self.filter_list = bound_list
+        self.hex_format = hex_format
 
     def __call__(self, stimuli):
         filtered_stimuli = [[0] * len(stimuli[0]) for _ in range(len(stimuli))]
         for i in range(len(stimuli)):
             for j in range(len(stimuli[i])):
-                if(self.filter_list[j] != None):
-                    stimuli[i][j] = int(stimuli[i][j])
-                    if(stimuli[i][j] < self.filter_list[j][0]): # check lower bound
-                        stimuli[i][j] = self.filter_list[j][0]
-                    if(stimuli[i][j] > self.filter_list[j][1]): # check upper bound
-                        stimuli[i][j] = self.filter_list[j][1]
-                filtered_stimuli[i][j] = stimuli[i][j]
+                try:
+                    if(self.filter_list[j] != None):
+                        if(self.hex_format):
+                            stimuli[i][j] = int(stimuli[i][j], 16)
+                        else:
+                            stimuli[i][j] = int(stimuli[i][j])
+                        if(stimuli[i][j] < self.filter_list[j][0]): # check lower bound
+                            stimuli[i][j] = self.filter_list[j][0]
+                        if(stimuli[i][j] > self.filter_list[j][1]): # check upper bound
+                            stimuli[i][j] = self.filter_list[j][1]
+                    filtered_stimuli[i][j] = stimuli[i][j]
+                except:
+                        filtered_stimuli[i][j] = 0
+        if(self.hex_format):
+            for i in range(len(filtered_stimuli)):
+                filtered_stimuli[i] = tuple(filtered_stimuli[i])
         return filtered_stimuli
