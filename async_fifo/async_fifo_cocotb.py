@@ -29,18 +29,6 @@ class CoverageMonitor:
 
     def __init__(self):
         self.coverage_database = CoverageDatabase()
-        # self.coverage_database.read_faster= {
-        #     "full_read_wrap": 0,
-        #     "gray_read_wrap": 0,
-        #     "full_write_wrap": 0,
-        #     "gray_write_wrap":0,
-        #     "underflow": 0,
-        #     "overflow": 0,
-        #     "full": 0,
-        #     "empty": 0
-        # }
-        # self.coverage_database.write_faster = self.coverage_database.read_faster
-        # self.coverage_database.same_speed = self.coverage_database.read_faster
         self.coverage_database.misc_bins= {
             "full_read_wrap": 0,
             "gray_read_wrap": 0,
@@ -203,6 +191,7 @@ async def basic_test(dut):
     from global_shared_types import GlobalCoverageDatabase
 
     server_port = input("Please enter server's port (e.g. 5050, 5555): ")
+    # server_port = "5050"
 
     trial_cnt = 0
 
@@ -231,6 +220,4 @@ async def basic_test(dut):
                     coverage_monitor.coverage_database
                 ).get_coverage_rate()
             )
-
-# nsb_prefetcher_req MAIN INPUT
-# nsb_prefetcher_resp RESPONSE
+        break

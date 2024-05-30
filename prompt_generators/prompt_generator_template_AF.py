@@ -58,11 +58,11 @@ class TemplatePromptGeneratorAF(TemplatePromptGenerator):
                 f"DUT CODE\n"
                 f"{dut_code}\n"
                 f"------\n"
-                f"I also have a testbench for the DUT. Here's the Python code of the testbench:\n"
-                f"------\n"
-                f"TESTBENCH CODE\n"
-                f"{tb_code}\n"
-                f"------\n"
+                # f"I also have a testbench for the DUT. Here's the Python code of the testbench:\n"
+                # f"------\n"
+                # f"TESTBENCH CODE\n"
+                # f"{tb_code}\n"
+                # f"------\n"
             )
             return dut_summary
         else:
