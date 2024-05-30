@@ -13,6 +13,8 @@ class TemplatePromptGenerator4ID1(TemplatePromptGenerator):
         bin_descr_path: str = "../examples_ID/bins_description.txt",
         code_summary_type: int = 0,  # 0: no code, 1: code, 2: summary
         sampling_missed_bins_method: Union[str, None] = None,
+        easy_cutoff: int = 100,
+        few_shot: int = 0
     ):
         super().__init__(
             dut_code_path,
@@ -20,13 +22,15 @@ class TemplatePromptGenerator4ID1(TemplatePromptGenerator):
             bin_descr_path,
             code_summary_type,
             sampling_missed_bins_method,
+            easy_cutoff,
+            few_shot
         )
 
     def generate_system_prompt(self) -> str:
         return (
             "Please output a list of hexadecimal integers only, "
             f"each integer between 0x0 and 0xffffffff. \n"
-            f"Do not give any explanations. \n"
+            f"Do not give any explanations, or any other text, like apologise.\n"
             f"Output format: [a, b, c, ...]."
             # f"Output format: \n"
             # f"bin_name_1: a, \n"
@@ -68,11 +72,11 @@ class TemplatePromptGenerator4ID1(TemplatePromptGenerator):
                 f"DUT CODE\n"
                 f"{dut_code}\n"
                 f"------\n"
-                f"I also have a testbench for the DUT. Here's the Python code of the testbench:\n"
-                f"------\n"
-                f"TESTBENCH CODE\n"
-                f"{tb_code}\n"
-                f"------\n"
+                # f"I also have a testbench for the DUT. Here's the Python code of the testbench:\n"
+                # f"------\n"
+                # f"TESTBENCH CODE\n"
+                # f"{tb_code}\n"
+                # f"------\n"
             )
             return dut_summary
         else:
@@ -91,7 +95,25 @@ class TemplatePromptGenerator4ID1(TemplatePromptGenerator):
             f"{bins_description}\n"
             f"------\n"
         )
+        tb_summary += self._load_examples()
         return tb_summary
+
+    def _load_examples(self) -> str:
+        if(self.few_shot == 1):
+            examples = (
+                f"Here are a few examples:\n"
+                f"- 0x41924493 => read_A_reg_4, write_reg_9, XORI, XORI_x_read_A_reg_4, XORI_x_write_reg_9 covered\n"
+                f"- 0x01510893 => read_A_reg_2, write_reg_17, ADDI, ADDI_x_read_A_reg_2, ADDI_x_write_reg_17 covered\n"
+                f"- 0x40b78833 => read_A_reg_15, read_B_reg_11, write_reg_16, SUB, SUB_x_read_A_reg_15, SUB_x_read_B_reg_11, SUB_x_write_reg_16 covered\n"
+                f"- 0x00417bb3 => read_A_reg_2, read_B_reg_4, write_reg_23, AND, AND_x_read_A_reg_2, AND_x_read_B_reg_4, AND_x_write_reg_23 covered\n"
+                f"- 0x00108283 => read_A_reg_1, write_reg_5, LB, LB_x_read_A_reg_1, LB_x_write_reg_5 covered\n"
+                f"- 0x00b1b193 => read_A_reg_3, write_reg_3, SLTUI, SLTUI_x_read_A_reg_3, SLTUI_x_write_reg_3 covered\n"
+                f"- 0x40a95ab3 => read_A_reg_18, read_B_reg_10, write_reg_21, SRA, SRA_x_read_A_reg_18, SRA_x_read_B_reg_10, SRA_x_write_reg_21 covered\n"
+                f"------\n"  
+            )
+        else:
+            examples = ""
+        return examples
 
     def _load_init_question(self) -> str:
         init_question = (

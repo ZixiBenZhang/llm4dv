@@ -198,6 +198,7 @@ class SimulationController:
             while True:
                 stimulus_msg = socket.recv()
                 stimulus_obj = pickle.loads(stimulus_msg)
+                print(stimulus_obj)
 
                 if stimulus_obj is None:
                     socket.send_pyobj(self.coverage_monitor.coverage_database)
@@ -205,7 +206,10 @@ class SimulationController:
                     break
 
                 if not isinstance(stimulus_obj, int):
-                    assert False, "Saw bad stimulus message"
+                    try:
+                        stimulus_obj = int(stimulus_obj[0])
+                    except:
+                        assert False, "Saw bad stimulus message"
 
                 if stimulus_obj > 2**32 or stimulus_obj < 0:
                     assert False, "Saw out of range stimulus message"
@@ -230,6 +234,7 @@ async def basic_test(dut):
     from global_shared_types import GlobalCoverageDatabase
 
     server_port = input("Please enter server's port (e.g. 5050, 5555): ")
+    # server_port = "5555"
 
     trial_cnt = 0
 
@@ -255,3 +260,4 @@ async def basic_test(dut):
                     coverage_monitor.coverage_database
                 ).get_coverage_rate()
             )
+        break
