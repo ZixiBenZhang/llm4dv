@@ -12,10 +12,10 @@ from datetime import datetime
 import zmq
 import pickle
 from contextlib import closing
+from pathlib import Path
 
 directory = os.path.dirname(os.path.abspath("__file__"))
 sys.path.insert(0, os.path.dirname(directory))
-# print(sys.path)
 
 from agents.agent_LLM import *
 from agents.agent_IC_dumb import *
@@ -23,10 +23,13 @@ from agents.agent_random import *
 from loggers.logger_csv import CSVLogger
 from loggers.logger_txt import TXTLogger
 from models.llm_gpt import ChatGPT
+from models.llm_openrouter import OpenRouter
 from ibex_cpu.shared_types import *
 from stimuli_extractor import *
 from stimuli_filter import *
 from prompt_generators.prompt_generator_template_IC import *
+
+increment_address = True
 
 
 class StimulusSender:
@@ -59,6 +62,8 @@ def random_experiment():
     server_ip_port = input(
         "Please enter server's IP and port (e.g. 127.0.0.1:5050, 128.232.65.218:5555): "
     )
+
+    # server_ip_port = "0.0.0.0:5050"
 
     CYCLES = 1000000
 
@@ -94,9 +99,18 @@ def random_experiment():
         print(f"Final coverage rate: {g_coverage.get_coverage_rate()}")
 
 
-def main():
+def main(model_name="meta-llama/llama-2-70b-chat", missed_bin_sampling="RANDOM", best_iter_message_sampling="Recent Responses", dialogue_restarting="rst_plan_Low_Tolerance", buffer_resetting="STABLE", code_summary_type=0, few_shot=0):
+    if(dialogue_restarting == "rst_plan_Normal_Tolerance"):
+        dialogue_restarting = rst_plan_Normal_Tolerance
+    elif (dialogue_restarting == "rst_plan_Low_Tolerance"):
+        dialogue_restarting = rst_plan_Low_Tolerance
+    elif(dialogue_restarting == "rst_plan_High_Tolerance"):
+        dialogue_restarting = rst_plan_High_Tolerance
+    elif (dialogue_restarting == "rst_plan_Coverage_RateBased_Tolerance"):
+        dialogue_restarting = rst_plan_Coverage_RateBased_Tolerance
     print("Running main experiment on IC...\n")
 
+    # server_ip_port = "0.0.0.0:5555"
     server_ip_port = input(
         "Please enter server's IP and port (e.g. 127.0.0.1:5050, 128.232.65.218:5555): "
     )
@@ -108,22 +122,92 @@ def main():
     # build components
     prompt_generator = TemplatePromptGenerator4IC2(
         bin_descr_path="../examples_IC/bins_description.txt",
-        sampling_missed_bins_method="ICNEWEST",
+        sampling_missed_bins_method=missed_bin_sampling,
+        code_summary_type=int(code_summary_type),
+        easy_cutoff = 50,
+        few_shot=int(few_shot)
     )
 
-    stimulus_generator = ChatGPT(
-        max_gen_tokens=1000,
+    stimulus_generator = OpenRouter(
         system_prompt=prompt_generator.generate_system_prompt(),
-        best_iter_buffer_resetting="STABLE",
-        compress_msg_algo="best 2 recent 1",
+        best_iter_buffer_resetting=buffer_resetting,
+        compress_msg_algo=best_iter_message_sampling,
         prioritise_harder_bins=False,
+        model_name=model_name
     )
-    extractor = ICExtractor()
-    stimulus_filter = ICFilter(0x0, 0xFFFFFFFF)
+    if(increment_address):
+        extractor = UniversalExtractor(1)
+        stimulus_filter = UniversalFilter([[0x0, 0xFFFFFFFF]], True)
+    else:
+        extractor = ICExtractor()
+        stimulus_filter = ICFilter(0x0, 0xFFFFFFFF)
 
     # build loggers
+    prefix = "./logs/" + model_name + "_"
+    if(increment_address):
+        prefix = prefix.replace(prefix.split("/")[-2], prefix.split("/")[-2] + "/incremental")
+    else:
+        prefix = prefix.replace(prefix.split("/")[-2], prefix.split("/")[-2] + "/memory_update")
+
+    if("gpt-3" in model_name):
+        prefix = prefix.replace("openai", "openai_gpt-3")
+    elif("gpt-4" in model_name):
+        prefix = prefix.replace("openai", "openai_gpt-4")
+
+    if("llama-2-70b-chat" in model_name):
+        prefix = prefix.replace("meta-llama", "meta-llama-2")
+    elif("codellama-70b-instruct" in model_name):
+        prefix = prefix.replace("meta-llama", "meta-llama-code")
+    elif("llama-3-70b" in model_name):
+        prefix = prefix.replace("meta-llama", "meta-llama-3")
+
+    if(missed_bin_sampling == "RANDOM"):
+        prefix += "1_"
+    elif(missed_bin_sampling == "NEWEST"):
+        prefix += "2_"
+    elif(missed_bin_sampling == "MIXED"):
+        prefix += "3_"
+
+    if(best_iter_message_sampling == "Recent Responses"):
+        prefix += "I_"
+    elif(best_iter_message_sampling == "Successful Responses"):
+        prefix += "II_"
+    elif(best_iter_message_sampling == "Mixed Recent and Successful Responses"):
+        prefix += "III_"
+    elif(best_iter_message_sampling == "Successful Difficult Responses"):
+        prefix += "IV_"
+
+    if(dialogue_restarting == rst_plan_Normal_Tolerance):
+        prefix += "a_"
+    elif(dialogue_restarting == rst_plan_Low_Tolerance):
+        prefix += "b_"
+    elif(dialogue_restarting == rst_plan_High_Tolerance):
+        prefix += "c_"
+    elif(dialogue_restarting == rst_plan_Coverage_RateBased_Tolerance):
+        prefix += "d_"
+
+    if(buffer_resetting == "CLEAR"):
+        prefix += "i"
+    elif(buffer_resetting == "KEEP"):
+        prefix += "ii"
+    elif(buffer_resetting == "STABLE"):
+        prefix += "iii"
+
+    if(code_summary_type == "1"):
+        prefix += "_with_code"
+
+    if(few_shot == "1"):
+        prefix += "_few_shot"
+    
+    prefix += "/"
+
+    Path(prefix).mkdir(parents=True, exist_ok=True)
+
+    t = datetime.now()
+    t = t.strftime("%Y%m%d_%H%M%S")
     logger_txt = TXTLogger(f"{prefix}{t}.txt")
     logger_csv = CSVLogger(f"{prefix}{t}.csv")
+
 
     # create agent
     agent = LLMAgent(
@@ -133,7 +217,7 @@ def main():
         stimulus_filter,
         [logger_txt, logger_csv],
         dialog_bound=700,
-        rst_plan=rst_plan_Low_Tolerance,
+        rst_plan=dialogue_restarting,
     )
     print("Agent successfully built\n")
 
@@ -148,10 +232,10 @@ def main():
             stimulus.insn_mem_updates = agent.generate_next_value(
                 g_dut_state, g_coverage, is_ic=True
             )
-            print(
-                f"Generated updates[:10]: "
-                f"{list(map(lambda p: (hex(p[0]), hex(p[1])),stimulus.insn_mem_updates))[:10]}\n"
-            )
+            # print(
+            #     f"Generated updates[:10]: "
+            #     f"{list(map(lambda p: (hex(p[0]), hex(p[1])),stimulus.insn_mem_updates))[:10]}\n"
+            # )
             ibex_state, coverage = stimulus_sender.send_stimulus(stimulus)
             g_dut_state.set(ibex_state)
             g_coverage.set(coverage)
@@ -308,4 +392,5 @@ def budget_experiment():
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1],sys.argv[2],sys.argv[3].replace("_", " "),sys.argv[4],sys.argv[5],sys.argv[6],sys.argv[7])
+    # random_experiment()

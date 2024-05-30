@@ -41,12 +41,12 @@ class InstructionMonitor:
 
         insn = Encoding(self.insn.value).typed()
 
+        print(hex(self.insn.value))
+
         if insn is not None:
             try:
                 mnemonic = insn.instruction()
             except AssertionError:  # Valid RISC-V instruction, but not in instruction.py
-                # self.last_pc = None
-                # self.insn = None
                 print(
                     f">>>>> Valid RISC-V instruction {hex(insn.encoding)}, but not in instruction.py \n"
                 )

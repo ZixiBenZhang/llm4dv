@@ -15,10 +15,13 @@ sys.path.insert(0, os.path.dirname(directory))
 
 from ibex_cpu.instructions import Instr, Cov
 
-
 @dataclass
 class CoverageDatabase:
-    instructions: dict[Instr, dict[Cov, int]]
+    # for non-incremental address
+    # instructions: dict[Instr, dict[Cov, int]]
+    # for incremental address
+    instructions: list[Instr]
+    
     cross_coverage: dict[Instr, dict[tuple[Instr, Cov], int]]
 
     def get_coverage_dict(self) -> Dict[str, int]:
