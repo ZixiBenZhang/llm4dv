@@ -356,4 +356,59 @@ end
 // When finished dumping weights, reset read pointer so the same weights can be used for the next FTE pass
 assign reset_weights = (weight_bank_state == WEIGHT_BANK_FSM_DUMP_WEIGHTS) && (weight_bank_state_n == WEIGHT_BANK_FSM_WEIGHTS_WAITING);
 
+
+`ifdef FORMAL
+    logic [3:0] cycle_count;
+
+    integer duration;
+    integer max_high;
+
+    integer i;
+    integer j;
+    
+    initial begin 
+        assume(!resetn)
+        cycle_count <= 0;
+    end
+
+    always @(posedge core_clk) begin
+        if (cycle_count < 10)
+            cycle_count <= cycle_count + 1;
+    end
+
+    assume property ( @(posedge core_clk) cycle_count < 5 |-> !resetn );
+    assume property ( @(posedge core_clk) cycle_count > 4 |-> resetn );
+
+    always @(posedge core_clk or negedge resetn) begin
+        if (!resetn) begin
+            duration <= 0;
+            max_high <= 0;
+        end else begin
+            if(weight_channel_resp.done) begin
+                for (i = 1; i < 5; i++) begin
+                    in_features_cov: cover (duration == i*16);
+                    for (j = 1; j < 65; j++) begin
+                        combined_features_cov: cover ((max_high-1 == j) & (duration == i*16));
+                    end
+                end
+
+                for (j = 1; j < 65; j++) begin
+                    out_features_cov: cover ((max_high-1 == j));
+                end
+                
+
+                duration <= 0;
+                max_high <= 0;
+            end else begin
+                if (weight_channel_resp.valid_mask[0]) begin
+                    duration <= duration + 1;
+                end
+
+                if(weight_channel_resp.valid_mask[max_high]) begin
+                    max_high <= max_high + 1;
+                end
+            end
+        end
+    end
+`endif
 endmodule

@@ -132,6 +132,7 @@ async def basic_test(dut):
     from global_shared_types import GlobalCoverageDatabase
 
     server_port = input("Please enter server's port (e.g. 5050, 5555): ")
+    # server_port = "5050"
 
     trial_cnt = 0
 
@@ -170,3 +171,4 @@ async def basic_test(dut):
                     coverage_monitor.coverage_database
                 ).get_coverage_rate()
             )
+        break

@@ -8,6 +8,7 @@ from contextlib import closing
 import sys
 import os
 import numpy as np
+from pathlib import Path
 
 directory = os.path.dirname(os.path.abspath("__file__"))
 sys.path.insert(0, os.path.dirname("/".join(directory.split("/")[:-1])))
@@ -18,6 +19,7 @@ from agents.agent_random import *
 from agents.agent_LLM import *
 from prompt_generators.prompt_generator_template_AG_WB import *
 from models.llm_gpt import ChatGPT
+from models.llm_openrouter import OpenRouter
 from stimuli_extractor import UniversalExtractor
 from stimuli_filter import UniversalFilter
 from loggers.logger_csv import CSVLogger
@@ -52,8 +54,9 @@ def random_experiment():
     server_ip_port = input(
         "Please enter server's IP and port (e.g. 127.0.0.1:5050, 128.232.65.218:5555): "
     )
+    # server_ip_port = "0.0.0.0:5050"
 
-    CYCLES = 16
+    CYCLES = 10000
     agent = RandomAgent4AG_WB(total_cycle=CYCLES, seed=int(datetime.now().timestamp()))
 
     # run test
@@ -68,6 +71,9 @@ def random_experiment():
             dut_state, coverage = stimulus_sender.send_stimulus(stimulus)
             g_dut_state.set(dut_state)
             g_coverage.set(coverage)
+            print(
+                f"Coverage rate: {g_coverage.get_coverage_rate()}\n"
+            )
 
         coverage_plan = {
             k: v for (k, v) in g_coverage.get_coverage_plan().items() if v > 0
@@ -82,9 +88,18 @@ def random_experiment():
         stimulus.finish = True
         stimulus_sender.send_stimulus(stimulus)
 
-def main():
+def main(model_name="meta-llama/llama-2-70b-chat", missed_bin_sampling="RANDOM", best_iter_message_sampling="Recent Responses", dialogue_restarting="rst_plan_Low_Tolerance", buffer_resetting="STABLE", code_summary_type = 0, few_shot = 0):
+    if(dialogue_restarting == "rst_plan_Normal_Tolerance"):
+        dialogue_restarting = rst_plan_Normal_Tolerance
+    elif (dialogue_restarting == "rst_plan_Low_Tolerance"):
+        dialogue_restarting = rst_plan_Low_Tolerance
+    elif(dialogue_restarting == "rst_plan_High_Tolerance"):
+        dialogue_restarting = rst_plan_High_Tolerance
+    elif (dialogue_restarting == "rst_plan_Coverage_RateBased_Tolerance"):
+        dialogue_restarting = rst_plan_Coverage_RateBased_Tolerance
     print("Running main experiment on AG_WB...")
 
+    # server_ip_port = "0.0.0.0:5050"
     server_ip_port = input(
         "Please enter server's IP and port (e.g. 127.0.0.1:5050, 128.232.65.218:5555): "
     )
@@ -94,23 +109,79 @@ def main():
         bin_descr_path="../../examples_AG_WB/bins_description.txt",
         dut_code_path="prefetcher_weight_bank.sv",
         tb_code_path="agile_prefetcher_weight_bank_cocotb.py",
-        sampling_missed_bins_method="RANDOM",
-        code_summary_type=1
+        sampling_missed_bins_method=missed_bin_sampling,
+        code_summary_type=int(code_summary_type),
+        few_shot=int(few_shot)
     )
 
     # stimulus_generator = Llama2(system_prompt=prompt_generator.generate_system_prompt())
     # print('Llama2 successfully built')
-    stimulus_generator = ChatGPT(
+    stimulus_generator = OpenRouter(
         system_prompt=prompt_generator.generate_system_prompt(),
-        best_iter_buffer_resetting="STABLE",
-        compress_msg_algo="best 3",
+        best_iter_buffer_resetting=buffer_resetting,
+        compress_msg_algo=best_iter_message_sampling,
         prioritise_harder_bins=False,
+        model_name=model_name
     )
     extractor = UniversalExtractor(2)
     stimulus_filter = UniversalFilter([[1,64],[1,64]])
 
-    # build loggers
-    prefix = "./logs/"
+# build loggers
+    prefix = "./logs/" + model_name + "_"
+    if("gpt-3" in model_name):
+        prefix = prefix.replace("openai", "openai_gpt-3")
+    elif("gpt-4" in model_name):
+        prefix = prefix.replace("openai", "openai_gpt-4")
+
+    if("llama-2-70b-chat" in model_name):
+        prefix = prefix.replace("meta-llama", "meta-llama-2")
+    elif("codellama-70b-instruct" in model_name):
+        prefix = prefix.replace("meta-llama", "meta-llama-code")
+    elif("llama-3-70b" in model_name):
+        prefix = prefix.replace("meta-llama", "meta-llama-3")
+
+    if(missed_bin_sampling == "RANDOM"):
+        prefix += "1_"
+    elif(missed_bin_sampling == "NEWEST"):
+        prefix += "2_"
+    elif(missed_bin_sampling == "MIXED"):
+        prefix += "3_"
+
+    if(best_iter_message_sampling == "Recent Responses"):
+        prefix += "I_"
+    elif(best_iter_message_sampling == "Successful Responses"):
+        prefix += "II_"
+    elif(best_iter_message_sampling == "Mixed Recent and Successful Responses"):
+        prefix += "III_"
+    elif(best_iter_message_sampling == "Successful Difficult Responses"):
+        prefix += "IV_"
+
+    if(dialogue_restarting == rst_plan_Normal_Tolerance):
+        prefix += "a_"
+    elif(dialogue_restarting == rst_plan_Low_Tolerance):
+        prefix += "b_"
+    elif(dialogue_restarting == rst_plan_High_Tolerance):
+        prefix += "c_"
+    elif(dialogue_restarting == rst_plan_Coverage_RateBased_Tolerance):
+        prefix += "d_"
+
+    if(buffer_resetting == "CLEAR"):
+        prefix += "i"
+    elif(buffer_resetting == "KEEP"):
+        prefix += "ii"
+    elif(buffer_resetting == "STABLE"):
+        prefix += "iii"
+
+    if(code_summary_type == "1"):
+        prefix += "_with_code"
+
+    if(few_shot == "1"):
+        prefix += "_few_shot"
+    
+    prefix += "/"
+
+    Path(prefix).mkdir(parents=True, exist_ok=True)
+
     t = datetime.now()
     t = t.strftime("%Y%m%d_%H%M%S")
     logger_txt = TXTLogger(f"{prefix}{t}.txt")
@@ -123,8 +194,9 @@ def main():
         extractor,
         stimulus_filter,
         [logger_txt, logger_csv],
-        dialog_bound=300,
-        rst_plan=rst_plan_Normal_Tolerance,
+        dialog_bound=700,
+        rst_plan=dialogue_restarting,
+        bin_count=324
     )
     print("Agent successfully built\n")
 
@@ -158,4 +230,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1],sys.argv[2],sys.argv[3].replace("_", " "),sys.argv[4],sys.argv[5],sys.argv[6],sys.argv[7])
+    # random_experiment()

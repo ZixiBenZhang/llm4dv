@@ -9,6 +9,7 @@ class TemplatePromptGeneratorAG_WB(TemplatePromptGenerator):
         bin_descr_path: str = "",
         code_summary_type: int = 0,  # 0: no code, 1: code
         sampling_missed_bins_method: Union[str, None] = None,
+        few_shot: int = 0
     ):
         super().__init__(
             dut_code_path,
@@ -16,13 +17,15 @@ class TemplatePromptGeneratorAG_WB(TemplatePromptGenerator):
             bin_descr_path,
             code_summary_type,
             sampling_missed_bins_method,
+            100,
+            few_shot
         )
 
     def generate_system_prompt(self) -> str:
         return (
             "Please output a list of positive integer pairs only, "
             f"each integer between 1 and {BOUND}. \n"
-            f"Do not give any explanations. \n"
+            f"Do not give any text - explanations, comments or any remarks - only the list of integers. \n"
             f"Output format: [(a,b),(c,d)...]."
         )
 
@@ -58,11 +61,11 @@ class TemplatePromptGeneratorAG_WB(TemplatePromptGenerator):
                 f"DUT CODE\n"
                 f"{dut_code}\n"
                 f"------\n"
-                f"I also have a testbench for the DUT. Here's the Python code of the testbench:\n"
-                f"------\n"
-                f"TESTBENCH CODE\n"
-                f"{tb_code}\n"
-                f"------\n"
+                # f"I also have a testbench for the DUT. Here's the Python code of the testbench:\n"
+                # f"------\n"
+                # f"TESTBENCH CODE\n"
+                # f"{tb_code}\n"
+                # f"------\n"
             )
             return dut_summary
         else:
@@ -81,7 +84,23 @@ class TemplatePromptGeneratorAG_WB(TemplatePromptGenerator):
             f"{bins_description}\n"
             f"------\n"
         )
+        tb_summary += self._load_examples()
         return tb_summary
+    
+    def _load_examples(self) -> str:
+        if(self.few_shot == 1):
+            examples = (
+                f"Here are a few examples:\n"
+                f"- (16,1) => 16 units of data loaded on each row, 1 row was loaded with valid data => in_1, out_1, combined_features_1_1 covered\n"
+                f"- (32,5) => 32 units of data loaded on each row, 5 rows were loaded with valid data => in_2, out_5, combined_features_2_5 covered\n"
+                f"- (64,3) => 64 units of data loaded on each row, 3 rows were loaded with valid data => in_4, out_3, combined_features_4_3 covered\n"
+                f"- (64,41) => 64 units of data loaded on each row, 41 rows were loaded with valid data => in_4, out_41, combined_features_4_41 covered\n"
+                f"- (1,22) => 16 units of data loaded on each row, 22 rows were loaded with valid data => in_1, out_22, combined_features_1_22 covered\n"
+                f"------\n"  
+            )
+        else:
+            examples = ""
+        return examples
 
     def _load_init_question(self) -> str:
         init_question = (
@@ -108,6 +127,7 @@ class TemplatePromptGeneratorAG_WB(TemplatePromptGenerator):
                 "much of the described bins as you can.\n"
                 "You will see the result coverage of your previous response(s), and then "
                 "generate another list of integer pairs to cover the unreached bins (i.e. test cases)\n"
+                "Do not give any text - explanations, comments or any remarks - only the list of integers.\n"
                 f"Here are {'some of ' if self.sampling_missed_bins else ''} the unreached bins:\n"
             )
 
@@ -116,6 +136,7 @@ class TemplatePromptGeneratorAG_WB(TemplatePromptGenerator):
                 "The values you provided failed to cover all the bins.\n"
                 "You will see the result coverage of your previous response(s), and then "
                 "generate another list of integer pairs to cover the unreached bins (i.e. test cases)\n"
+                "Do not give any text - explanations, comments or any remarks - only the list of integers.\n"
                 f"Here are {'some of ' if self.sampling_missed_bins else ''}the unreached bins:\n"
             )
         return result_summary
@@ -130,7 +151,7 @@ class TemplatePromptGeneratorAG_WB(TemplatePromptGenerator):
             for i in range(1, BOUND+1)
         }
         combined_difference = {
-            f"combined_features_{i}_{j}": f"- {i*16} units of data loaded on each row is unreached, and {j} number of rows loaded with valid data,"
+            f"combined_features_{i}_{j}": f"- {i*16} units of data loaded on each row, and {j} number of rows loaded with valid data is unreached,\n"
             for i in range(1, int(BOUND/16+1))
             for j in range(1, BOUND+1)
         }
@@ -149,10 +170,12 @@ class TemplatePromptGeneratorAG_WB(TemplatePromptGenerator):
                 f"Please generate a list of integer pairs, "
                 f"each integer between 1 and {BOUND}, "
                 "with output format: [(a,b),(c,d)...]"
+                "Do not give any text - explanations, comments or any remarks - only the list of integers.\n"
             )
         else:
             iter_question = (
                 "Please regenerate integer pairs for the still unreached bins "
-                "according to the BINS DESCRIPTION."
+                "according to the BINS DESCRIPTION.\n"
+                "Do not give any text - explanations, comments or any remarks - only the list of integers.\n"
             )
         return iter_question

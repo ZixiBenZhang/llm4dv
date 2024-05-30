@@ -218,6 +218,7 @@ def main(model_name="meta-llama/llama-2-70b-chat", missed_bin_sampling="RANDOM",
         [logger_txt, logger_csv],
         dialog_bound=700,
         rst_plan=dialogue_restarting,
+        bin_count=196
     )
     print("Agent successfully built\n")
 
