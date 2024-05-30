@@ -15,6 +15,8 @@ class TemplatePromptGenerator4SD1(TemplatePromptGenerator):
         bin_descr_path: str = "../examples_SD/bins_description.txt",
         code_summary_type: int = 0,  # 0: no code, 1: code, 2: summary
         sampling_missed_bins_method: Union[str, None] = None,
+        easy_cutoff: int = 100,
+        few_shot: int = 0
     ):
         super().__init__(
             dut_code_path,
@@ -22,6 +24,8 @@ class TemplatePromptGenerator4SD1(TemplatePromptGenerator):
             bin_descr_path,
             code_summary_type,
             sampling_missed_bins_method,
+            easy_cutoff,
+            few_shot
         )
 
     def generate_system_prompt(self) -> str:
@@ -62,11 +66,11 @@ class TemplatePromptGenerator4SD1(TemplatePromptGenerator):
                 f"DUT CODE\n"
                 f"{dut_code}\n"
                 f"------\n"
-                f"I also have a testbench for the DUT. Here's the Python code of the testbench:\n"
-                f"------\n"
-                f"TESTBENCH CODE\n"
-                f"{tb_code}\n"
-                f"------\n"
+                # f"I also have a testbench for the DUT. Here's the Python code of the testbench:\n"
+                # f"------\n"
+                # f"TESTBENCH CODE\n"
+                # f"{tb_code}\n"
+                # f"------\n"
             )
             return dut_summary
         else:
@@ -85,7 +89,22 @@ class TemplatePromptGenerator4SD1(TemplatePromptGenerator):
             f"{bins_description}\n"
             f"------\n"
         )
+        tb_summary += self._load_examples()
         return tb_summary
+    
+    def _load_examples(self) -> str:
+        if(self.few_shot == 1):
+            examples = (
+                f"Here are a few examples:\n"
+                f"- [-15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2] => single_2 covered\n"
+                f"- [-15, -16, -14, -15, -13, -14, -12, -13, -11, -12, -10, -11, -9, -10, -8, -9, -7, -8] => double_-1_2 covered\n"
+                f"- [1, 5, 4, -11, -12, 5, 11, 0, -1, -2, -1, -1, -9, -13, -8, -9, -7, -8] [0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36, 39, 42, 45, 48, 51] => no_stride_to_single covered\n"
+                f"- [0, 20, 40, 60, 80, 100, 120, 140, 160, 180, 200, 220, 240, 260, 280, 300, 320, 340] => single_stride_p_overflow covered\n"
+                f"------\n"  
+            )
+        else:
+            examples = ""
+        return examples
 
     def _load_init_question(self) -> str:
         init_question = (
