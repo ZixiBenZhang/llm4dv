@@ -37,11 +37,9 @@ class CoverageMonitor:
             "mess_fetch_adj_nopartial": 0,
             "mess_fetch_adj_partial": 0,
             
-            "mess_nopartial": 0,
-            "mess_partial": 0,
+            "mess_seen": 0,
 
-            "scale_nopartial": 0,
-            "scale_partial": 0
+            "scale_seen": 0,
         }
         self.coverage_sampled_event = Event()
 
@@ -84,16 +82,16 @@ class SimulationController:
                     await self.allocate_tag(nodeslot=nodeslot,feature_count=feature_count)
                 elif(op == "adjacency_write"):
                     await self.req_adj_write(neighbour_count=neighbour_count, nodeslot=nodeslot)
-                elif(op == "adjacency_read"):
-                    await self.req_adj_read()
+                # elif(op == "adjacency_read"):
+                #     await self.req_adj_read()
                 elif(op == "message_write"):
                     await self.req_message_write(nodeslot=nodeslot)
-                elif(op == "message_read"):
-                    await self.req_message_read(nodeslot=nodeslot)
+                # elif(op == "message_read"):
+                #     await self.req_message_read(nodeslot=nodeslot)
                 elif(op == "scale_write"):
                     await self.req_scale_write(neighbour_count=neighbour_count, nodeslot=nodeslot)
-                elif(op == "scale_read"):
-                    await self.req_scale_read()
+                # elif(op == "scale_read"):
+                #     await self.req_scale_read()
 
                 socket.send_pyobj((dut_state, self.coverage_monitor.coverage_database))
 
@@ -217,10 +215,7 @@ class SimulationController:
                 while (self.dut.trigger_msg_partial_resp.value == 0 and self.dut.message_fetch_state.value != 4 and self.dut.message_queue_full.value == 0):
                     self.sample_signals()
                     await ClockCycles(self.dut.core_clk, 1)
-            if(self.dut.trigger_msg_partial_resp.value == 0):
-                self.coverage_monitor.coverage_database.misc_bins["mess_nopartial"] += 1
-            else:
-                self.coverage_monitor.coverage_database.misc_bins["mess_partial"] += 1
+            self.coverage_monitor.coverage_database.misc_bins["mess_seen"] += 1
             self.dut.nsb_prefetcher_req_valid.value = 0
     
     async def req_message_read(self, nodeslot):
@@ -291,10 +286,7 @@ class SimulationController:
             while (self.dut.scale_factor_fetch_resp_valid.value == 0 and self.dut.scale_factor_queue_manager.issue_partial_done.value[0] == 0 and self.dut.scale_factor_queue_full.value == 0 and self.dut.scale_factor_queue_manager.fetch_state.value != 0):
                 await ClockCycles(self.dut.core_clk, 1)
                 self.sample_signals()
-            if(self.dut.scale_factor_queue_manager.issue_partial_done.value == 0):
-                self.coverage_monitor.coverage_database.misc_bins["scale_nopartial"] += 1
-            else:
-                self.coverage_monitor.coverage_database.misc_bins["scale_partial"] += 1
+            self.coverage_monitor.coverage_database.misc_bins["scale_seen"] += 1
 
             print("------------------")
             print(self.dut.scale_factor_queue_count.value)

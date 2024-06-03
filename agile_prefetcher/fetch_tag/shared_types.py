@@ -17,22 +17,6 @@ class DUTState:
         ]
     
 class CoverageDatabase:
-    # adj_dealloc: int
-    # mess_dealloc: int
-    # scale_dealloc: int
-
-    # adj_nomatch: int
-    # mess_nomatch: int
-    # scale_nomatch: int
-
-    # mess_fetch_adj_nopartial: int
-    # mess_fetch_adj_partial: int
-    
-    # mess_nopartial: int
-    # mess_partial: int
-
-    # scale_nopartial: int
-    # scale_partial: int
 
     misc_bins: dict[str, int]
 
@@ -48,6 +32,6 @@ BIN LIST:
 -Operations when tag is deallocated
 -Operations when nodeslots do not match
 -Message fetch with non-partial/partial adj queue
--Message fetch non-partial/partial
--Scale fetch non-partial/partial
+-Message fetch performed
+-Scale fetch performed
 """

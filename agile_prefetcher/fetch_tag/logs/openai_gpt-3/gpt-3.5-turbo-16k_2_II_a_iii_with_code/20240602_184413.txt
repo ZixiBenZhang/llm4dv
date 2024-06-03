@@ -1,0 +1,1031 @@
+Prompter: TemplatePromptGeneratorAG_FT
+Generator: openai/gpt-3.5-turbo-16k
+Temperature: 0.4
+Top_p: 1
+Extractor: UniversalExtractor
+
+Dialog index: 1
+Message index: 0
+Total msg cnt: 0
+Role: system
+Content: Please provide a list of lists, in the format: [[string, int, int, int], [string, int, int, int], ...]. Any text outside this format is not allowed.
+The first integer should be between 0 and 63, the other two between 0 and 1023.
+Example: [[allocate, 15, 64, 0], [adjacency_write, 15, 1, 48]]
+Do NOT provide any comments, extra remarks, context - only provide a list
+
+Dialog index: 1
+Message index: 1
+Total msg cnt: 1
+Token counts: 1100
+Role: user
+Content: You will receive a description of bins (i.e. test cases) of a testbench for a hardware device under test (DUT).
+The purpose of this device is to load data on three different queues: an "adjacency queue" (depth: 64), a "message queue" (depth: 4096), and a "scale factor queue" (depth: 64)
+
+----------
+Now, we want to test the DUT with a list of commands as its input. We want the input to cover the bins (i.e. test cases) that we care about. Here's the description of the bins that we care about:
+------
+BINS DESCRIPTION
+- You provide a list of lists, in the format: [string, int, int, int]. The internal lists will be interpreted as sequential instructions for a DUT.
+- The DUT is a device that includes three queues (RAM): an "adjacency queue" (depth: 64), a "message queue" (depth: 4096), and a "scale factor queue" (depth: 64)
+- The actual data the queues are loaded with is not important.
+- The three integers you provide are called:
+    - First integer: "nodeslot" (provide a number between 63 and 0)
+    - Second integer: "feature_count" (provide a number between 1023 and 1)
+    - Third integer: "neighbour_count" (provide a number between 1023 and 1)
+- The string in the internal lists defines the operation performed on the DUT. The operations are as follows:
+    - "allocate": you allocate the DUT a "nodeslot". You also allocate the DUT a "feature_count". "feature_count" should be at least 1. Keep note of the nodeslot you allocated to. You will need it to hit the majority of the coverage bins.
+    - "deallocate": you deallocate the DUT, it will not be allocated to any "nodeslot", and the "feature_count" is reset to 0. (do NOT use this often)
+    - "adjacency_write": you instruct the DUT to load data into the "adjacency queue". You have to provide the "nodeslot". The number of items loaded is equal to "neighbour_count" divided by 16, rounded up. "neighbour_count" should be at least 1.
+    - "message_write": you instruct the DUT to load data into the "adjacency queue". You have to provide the "nodeslot". The number of items loaded is equal to "neighbour_count" divided by 16, rounded up, multiplied by the "feature_count".
+    - "scale_write": you instruct the DUT to load data into the "scale factor queue". You have to provide the "nodeslot". The number of items loaded is equal to "neighbour_count".
+ONLY USE THE ABOVE MENTIONED STRINGS IN YOUR INSTRUCTIONS
+- You need to cover each of the following bins with your commands (an overflow occurs on a queue if the previous instruction tried to load more data on the queue than its depth):
+---
+    - adj_dealloc - the DUT is instructed to load the "adjacency queue", but the DUT was not allocated a "nodeslot"
+    - mess_dealloc - the DUT is instructed to load the "message queue", but the DUT was not allocated a "nodeslot"
+    - scale_dealloc - the DUT is instructed to load the "scale factor queue", but the DUT was not allocated a "nodeslot"
+    - adj_nomatch - the DUT is instructed to load the "adjacency queue", but the "nodeslot" provided for this command does not match the "nodeslot" allocated to the DUT
+    - mess_nomatch - the DUT is instructed to load the "message queue", but the "nodeslot" provided for this command does not match the "nodeslot" allocated to the DUT
+    - scale_nomatch - the DUT is instructed to load the "scale factor queue", but the "nodeslot" provided for this command does not match the "nodeslot" allocated to the DUT
+    - mess_fetch_adj_nopartial - the DUT is instructed to load the "message queue", and there is no overflow on the "adjacency queue"
+    - mess_fetch_adj_partial - the DUT is instructed to load the "message queue", and there is overflow on the "adjacency queue"
+    - mess_seen - data is loaded on the "message queue"
+    - scale_seen - data is loaded on the "scale queue"
+---
+------
+
+----------
+Following the bins description, generate a list of integer pairs which covers the described bins as much as you can.
+
+
+Dialog index: 1
+Message index: 1
+Total msg cnt: 1
+Token counts: 227
+Role: assistant
+Content: [[allocate, 0, 1023, 1023], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [deallocate, 0, 0, 0], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [message_write, 1, 1, 48], [scale_write, 1, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48]]
+
+Coverage rate: 6 / 10
+Coverage plan: {'adj_dealloc': 4, 'mess_dealloc': 4, 'scale_dealloc': 4, 'mess_fetch_adj_partial': 5, 'mess_seen': 1, 'scale_seen': 1}
+
+Dialog index: 1
+Message index: 2
+Total msg cnt: 2
+Token counts: 1577
+Role: user
+Content: The values you provided failed to cover all the bins.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases).
+Do NOT provide any comments, extra remarks, context - only provide a list.
+Here are some of the unreached bins:
+------
+UNREACHED BINS
+the DUT is instructed to load the "adjacency queue", but the "nodeslot" provided for this command does not match the "nodeslot" allocated to the DUT
+the DUT is instructed to load the "message queue", but the "nodeslot" provided for this command does not match the "nodeslot" allocated to the DUT
+the DUT is instructed to load the "scale factor queue", but the "nodeslot" provided for this command does not match the "nodeslot" allocated to the DUT
+the DUT is instructed to load the "message queue", and there is no overflow on the "adjacency queue"
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.
+Do NOT provide any comments, extra remarks, context - only provide a list
+
+Dialog index: 1
+Message index: 2
+Total msg cnt: 2
+Token counts: 294
+Role: assistant
+Content: [[allocate, 0, 1023, 1023], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [deallocate, 0, 0, 0], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [message_write, 1, 1, 48], [scale_write, 1, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48]]
+
+Coverage rate: 6 / 10
+Coverage plan: {'adj_dealloc': 10, 'mess_dealloc': 10, 'scale_dealloc': 9, 'mess_fetch_adj_partial': 12, 'mess_seen': 2, 'scale_seen': 2}
+
+Dialog index: 1
+Message index: 3
+Total msg cnt: 3
+Token counts: 2140
+Role: user
+Content: The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases).
+Do NOT provide any comments, extra remarks, context - only provide a list.
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the DUT is instructed to load the "adjacency queue", but the "nodeslot" provided for this command does not match the "nodeslot" allocated to the DUT
+the DUT is instructed to load the "message queue", but the "nodeslot" provided for this command does not match the "nodeslot" allocated to the DUT
+the DUT is instructed to load the "scale factor queue", but the "nodeslot" provided for this command does not match the "nodeslot" allocated to the DUT
+the DUT is instructed to load the "message queue", and there is no overflow on the "adjacency queue"
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.
+Do NOT provide any comments, extra remarks, context - only provide a list
+
+Dialog index: 1
+Message index: 3
+Total msg cnt: 3
+Token counts: 347
+Role: assistant
+Content: [[allocate, 0, 1023, 1023], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [deallocate, 0, 0, 0], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [message_write, 1, 1, 48], [scale_write, 1, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48]]
+
+Coverage rate: 6 / 10
+Coverage plan: {'adj_dealloc': 17, 'mess_dealloc': 17, 'scale_dealloc': 16, 'mess_fetch_adj_partial': 20, 'mess_seen': 3, 'scale_seen': 3}
+
+Dialog index: 1
+Message index: 4
+Total msg cnt: 4
+Token counts: 2756
+Role: user
+Content: The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases).
+Do NOT provide any comments, extra remarks, context - only provide a list.
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the DUT is instructed to load the "adjacency queue", but the "nodeslot" provided for this command does not match the "nodeslot" allocated to the DUT
+the DUT is instructed to load the "message queue", but the "nodeslot" provided for this command does not match the "nodeslot" allocated to the DUT
+the DUT is instructed to load the "scale factor queue", but the "nodeslot" provided for this command does not match the "nodeslot" allocated to the DUT
+the DUT is instructed to load the "message queue", and there is no overflow on the "adjacency queue"
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.
+Do NOT provide any comments, extra remarks, context - only provide a list
+
+Dialog index: 1
+Message index: 4
+Total msg cnt: 4
+Token counts: 600
+Role: assistant
+Content: [[allocate, 0, 1023, 1023], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [deallocate, 0, 0, 0], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [message_write, 1, 1, 48], [scale_write, 1, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48
+
+Coverage rate: 6 / 10
+Coverage plan: {'adj_dealloc': 31, 'mess_dealloc': 30, 'scale_dealloc': 29, 'mess_fetch_adj_partial': 34, 'mess_seen': 4, 'scale_seen': 4}
+
+Dialog index: 1
+Message index: 5
+Total msg cnt: 5
+Token counts: 3625
+Role: user
+Content: The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases).
+Do NOT provide any comments, extra remarks, context - only provide a list.
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the DUT is instructed to load the "adjacency queue", but the "nodeslot" provided for this command does not match the "nodeslot" allocated to the DUT
+the DUT is instructed to load the "message queue", but the "nodeslot" provided for this command does not match the "nodeslot" allocated to the DUT
+the DUT is instructed to load the "scale factor queue", but the "nodeslot" provided for this command does not match the "nodeslot" allocated to the DUT
+the DUT is instructed to load the "message queue", and there is no overflow on the "adjacency queue"
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.
+Do NOT provide any comments, extra remarks, context - only provide a list
+
+Dialog index: 1
+Message index: 5
+Total msg cnt: 5
+Token counts: 600
+Role: assistant
+Content: [[allocate, 0, 1023, 1023], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [deallocate, 0, 0, 0], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [message_write, 1, 1, 48], [scale_write, 1, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48
+
+Coverage rate: 6 / 10
+Coverage plan: {'adj_dealloc': 45, 'mess_dealloc': 43, 'scale_dealloc': 42, 'mess_fetch_adj_partial': 48, 'mess_seen': 5, 'scale_seen': 5}
+
+Dialog index: 1
+Message index: 6
+Total msg cnt: 6
+Token counts: 3950
+Role: user
+Content: The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases).
+Do NOT provide any comments, extra remarks, context - only provide a list.
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the DUT is instructed to load the "adjacency queue", but the "nodeslot" provided for this command does not match the "nodeslot" allocated to the DUT
+the DUT is instructed to load the "message queue", but the "nodeslot" provided for this command does not match the "nodeslot" allocated to the DUT
+the DUT is instructed to load the "scale factor queue", but the "nodeslot" provided for this command does not match the "nodeslot" allocated to the DUT
+the DUT is instructed to load the "message queue", and there is no overflow on the "adjacency queue"
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.
+Do NOT provide any comments, extra remarks, context - only provide a list
+
+Dialog index: 1
+Message index: 6
+Total msg cnt: 6
+Token counts: 600
+Role: assistant
+Content: [[allocate, 0, 1023, 1023], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [deallocate, 0, 0, 0], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [message_write, 1, 1, 48], [scale_write, 1, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48
+
+Coverage rate: 6 / 10
+Coverage plan: {'adj_dealloc': 59, 'mess_dealloc': 56, 'scale_dealloc': 55, 'mess_fetch_adj_partial': 62, 'mess_seen': 6, 'scale_seen': 6}
+
+Dialog index: 1
+Message index: 7
+Total msg cnt: 7
+Token counts: 3950
+Role: user
+Content: The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases).
+Do NOT provide any comments, extra remarks, context - only provide a list.
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the DUT is instructed to load the "adjacency queue", but the "nodeslot" provided for this command does not match the "nodeslot" allocated to the DUT
+the DUT is instructed to load the "message queue", but the "nodeslot" provided for this command does not match the "nodeslot" allocated to the DUT
+the DUT is instructed to load the "scale factor queue", but the "nodeslot" provided for this command does not match the "nodeslot" allocated to the DUT
+the DUT is instructed to load the "message queue", and there is no overflow on the "adjacency queue"
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.
+Do NOT provide any comments, extra remarks, context - only provide a list
+
+Dialog index: 1
+Message index: 7
+Total msg cnt: 7
+Token counts: 600
+Role: assistant
+Content: [[allocate, 0, 1023, 1023], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [deallocate, 0, 0, 0], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [message_write, 1, 1, 48], [scale_write, 1, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48
+
+Coverage rate: 6 / 10
+Coverage plan: {'adj_dealloc': 73, 'mess_dealloc': 69, 'scale_dealloc': 68, 'mess_fetch_adj_partial': 76, 'mess_seen': 7, 'scale_seen': 7}
+
+
+<<<<< RESET >>>>>
+
+
+Dialog index: 2
+Message index: 1
+Total msg cnt: 8
+Token counts: 1100
+Role: user
+Content: You will receive a description of bins (i.e. test cases) of a testbench for a hardware device under test (DUT).
+The purpose of this device is to load data on three different queues: an "adjacency queue" (depth: 64), a "message queue" (depth: 4096), and a "scale factor queue" (depth: 64)
+
+----------
+Now, we want to test the DUT with a list of commands as its input. We want the input to cover the bins (i.e. test cases) that we care about. Here's the description of the bins that we care about:
+------
+BINS DESCRIPTION
+- You provide a list of lists, in the format: [string, int, int, int]. The internal lists will be interpreted as sequential instructions for a DUT.
+- The DUT is a device that includes three queues (RAM): an "adjacency queue" (depth: 64), a "message queue" (depth: 4096), and a "scale factor queue" (depth: 64)
+- The actual data the queues are loaded with is not important.
+- The three integers you provide are called:
+    - First integer: "nodeslot" (provide a number between 63 and 0)
+    - Second integer: "feature_count" (provide a number between 1023 and 1)
+    - Third integer: "neighbour_count" (provide a number between 1023 and 1)
+- The string in the internal lists defines the operation performed on the DUT. The operations are as follows:
+    - "allocate": you allocate the DUT a "nodeslot". You also allocate the DUT a "feature_count". "feature_count" should be at least 1. Keep note of the nodeslot you allocated to. You will need it to hit the majority of the coverage bins.
+    - "deallocate": you deallocate the DUT, it will not be allocated to any "nodeslot", and the "feature_count" is reset to 0. (do NOT use this often)
+    - "adjacency_write": you instruct the DUT to load data into the "adjacency queue". You have to provide the "nodeslot". The number of items loaded is equal to "neighbour_count" divided by 16, rounded up. "neighbour_count" should be at least 1.
+    - "message_write": you instruct the DUT to load data into the "adjacency queue". You have to provide the "nodeslot". The number of items loaded is equal to "neighbour_count" divided by 16, rounded up, multiplied by the "feature_count".
+    - "scale_write": you instruct the DUT to load data into the "scale factor queue". You have to provide the "nodeslot". The number of items loaded is equal to "neighbour_count".
+ONLY USE THE ABOVE MENTIONED STRINGS IN YOUR INSTRUCTIONS
+- You need to cover each of the following bins with your commands (an overflow occurs on a queue if the previous instruction tried to load more data on the queue than its depth):
+---
+    - adj_dealloc - the DUT is instructed to load the "adjacency queue", but the DUT was not allocated a "nodeslot"
+    - mess_dealloc - the DUT is instructed to load the "message queue", but the DUT was not allocated a "nodeslot"
+    - scale_dealloc - the DUT is instructed to load the "scale factor queue", but the DUT was not allocated a "nodeslot"
+    - adj_nomatch - the DUT is instructed to load the "adjacency queue", but the "nodeslot" provided for this command does not match the "nodeslot" allocated to the DUT
+    - mess_nomatch - the DUT is instructed to load the "message queue", but the "nodeslot" provided for this command does not match the "nodeslot" allocated to the DUT
+    - scale_nomatch - the DUT is instructed to load the "scale factor queue", but the "nodeslot" provided for this command does not match the "nodeslot" allocated to the DUT
+    - mess_fetch_adj_nopartial - the DUT is instructed to load the "message queue", and there is no overflow on the "adjacency queue"
+    - mess_fetch_adj_partial - the DUT is instructed to load the "message queue", and there is overflow on the "adjacency queue"
+    - mess_seen - data is loaded on the "message queue"
+    - scale_seen - data is loaded on the "scale queue"
+---
+------
+
+----------
+Following the bins description, generate a list of integer pairs which covers the described bins as much as you can.
+
+
+Dialog index: 2
+Message index: 1
+Total msg cnt: 8
+Token counts: 361
+Role: assistant
+Content: [[allocate, 0, 1023, 1023], [adjacency_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [message_write, 1, 1, 48], [message_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [scale_write, 0, 1, 48], [scale_write, 0, 1, 48], [allocate, 1, 1023, 1023], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [message_write, 1, 1, 48], [message_write, 0, 1, 48], [message_write, 1, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [scale_write, 1, 1, 48], [scale_write, 0, 1, 48], [scale_write, 1, 1, 48], [deallocate, 0, 0, 0], [deallocate, 1, 0, 0]]
+
+Coverage rate: 9 / 10
+Coverage plan: {'adj_dealloc': 73, 'mess_dealloc': 69, 'scale_dealloc': 68, 'adj_nomatch': 3, 'mess_nomatch': 3, 'scale_nomatch': 2, 'mess_fetch_adj_partial': 84, 'mess_seen': 12, 'scale_seen': 12}
+
+Dialog index: 2
+Message index: 2
+Total msg cnt: 9
+Token counts: 1601
+Role: user
+Content: The values you provided failed to cover all the bins.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases).
+Do NOT provide any comments, extra remarks, context - only provide a list.
+Here are some of the unreached bins:
+------
+UNREACHED BINS
+the DUT is instructed to load the "message queue", and there is no overflow on the "adjacency queue"
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.
+Do NOT provide any comments, extra remarks, context - only provide a list
+
+Dialog index: 2
+Message index: 2
+Total msg cnt: 9
+Token counts: 374
+Role: assistant
+Content: [[allocate, 0, 1023, 1023], [adjacency_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [message_write, 1, 1, 48], [message_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [scale_write, 0, 1, 48], [scale_write, 0, 1, 48], [allocate, 1, 1023, 1023], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [message_write, 1, 1, 48], [message_write, 0, 1, 48], [message_write, 1, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [scale_write, 1, 1, 48], [scale_write, 0, 1, 48], [scale_write, 1, 1, 48], [deallocate, 0, 0, 0], [deallocate, 1, 0, 0], [message_write, 0, 1, 48]]
+
+Coverage rate: 9 / 10
+Coverage plan: {'adj_dealloc': 73, 'mess_dealloc': 70, 'scale_dealloc': 68, 'adj_nomatch': 6, 'mess_nomatch': 6, 'scale_nomatch': 4, 'mess_fetch_adj_partial': 93, 'mess_seen': 17, 'scale_seen': 17}
+
+Dialog index: 2
+Message index: 3
+Total msg cnt: 10
+Token counts: 2134
+Role: user
+Content: The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases).
+Do NOT provide any comments, extra remarks, context - only provide a list.
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the DUT is instructed to load the "message queue", and there is no overflow on the "adjacency queue"
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.
+Do NOT provide any comments, extra remarks, context - only provide a list
+
+Dialog index: 2
+Message index: 3
+Total msg cnt: 10
+Token counts: 387
+Role: assistant
+Content: [[allocate, 0, 1023, 1023], [adjacency_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [message_write, 1, 1, 48], [message_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [scale_write, 0, 1, 48], [scale_write, 0, 1, 48], [allocate, 1, 1023, 1023], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [message_write, 1, 1, 48], [message_write, 0, 1, 48], [message_write, 1, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [scale_write, 1, 1, 48], [scale_write, 0, 1, 48], [scale_write, 1, 1, 48], [deallocate, 0, 0, 0], [deallocate, 1, 0, 0], [message_write, 0, 1, 48], [message_write, 0, 1, 48]]
+
+Coverage rate: 9 / 10
+Coverage plan: {'adj_dealloc': 73, 'mess_dealloc': 72, 'scale_dealloc': 68, 'adj_nomatch': 9, 'mess_nomatch': 9, 'scale_nomatch': 6, 'mess_fetch_adj_partial': 103, 'mess_seen': 22, 'scale_seen': 22}
+
+Dialog index: 2
+Message index: 4
+Total msg cnt: 11
+Token counts: 2680
+Role: user
+Content: The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases).
+Do NOT provide any comments, extra remarks, context - only provide a list.
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the DUT is instructed to load the "message queue", and there is no overflow on the "adjacency queue"
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.
+Do NOT provide any comments, extra remarks, context - only provide a list
+
+Dialog index: 2
+Message index: 4
+Total msg cnt: 11
+Token counts: 400
+Role: assistant
+Content: [[allocate, 0, 1023, 1023], [adjacency_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [message_write, 1, 1, 48], [message_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [scale_write, 0, 1, 48], [scale_write, 0, 1, 48], [allocate, 1, 1023, 1023], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [message_write, 1, 1, 48], [message_write, 0, 1, 48], [message_write, 1, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [scale_write, 1, 1, 48], [scale_write, 0, 1, 48], [scale_write, 1, 1, 48], [deallocate, 0, 0, 0], [deallocate, 1, 0, 0], [message_write, 0, 1, 48], [message_write, 0, 1, 48], [message_write, 0, 1, 48]]
+
+Coverage rate: 9 / 10
+Coverage plan: {'adj_dealloc': 73, 'mess_dealloc': 75, 'scale_dealloc': 68, 'adj_nomatch': 12, 'mess_nomatch': 12, 'scale_nomatch': 8, 'mess_fetch_adj_partial': 114, 'mess_seen': 27, 'scale_seen': 27}
+
+Dialog index: 2
+Message index: 5
+Total msg cnt: 12
+Token counts: 3239
+Role: user
+Content: The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases).
+Do NOT provide any comments, extra remarks, context - only provide a list.
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the DUT is instructed to load the "message queue", and there is no overflow on the "adjacency queue"
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.
+Do NOT provide any comments, extra remarks, context - only provide a list
+
+Dialog index: 2
+Message index: 5
+Total msg cnt: 12
+Token counts: 414
+Role: assistant
+Content: [[allocate, 0, 1023, 1023], [adjacency_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [message_write, 1, 1, 48], [message_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [scale_write, 0, 1, 48], [scale_write, 0, 1, 48], [allocate, 1, 1023, 1023], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [message_write, 1, 1, 48], [message_write, 0, 1, 48], [message_write, 1, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [scale_write, 1, 1, 48], [scale_write, 0, 1, 48], [scale_write, 1, 1, 48], [deallocate, 0, 0, 0], [deallocate, 1, 0, 0], [message_write, 0, 1, 48], [message_write, 0, 1, 48], [message_write, 0, 1, 48], [adjacency_write, 0, 1, 48]]
+
+Coverage rate: 9 / 10
+Coverage plan: {'adj_dealloc': 74, 'mess_dealloc': 78, 'scale_dealloc': 68, 'adj_nomatch': 15, 'mess_nomatch': 15, 'scale_nomatch': 10, 'mess_fetch_adj_partial': 125, 'mess_seen': 32, 'scale_seen': 32}
+
+Dialog index: 2
+Message index: 6
+Total msg cnt: 13
+Token counts: 3296
+Role: user
+Content: The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases).
+Do NOT provide any comments, extra remarks, context - only provide a list.
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the DUT is instructed to load the "message queue", and there is no overflow on the "adjacency queue"
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.
+Do NOT provide any comments, extra remarks, context - only provide a list
+
+Dialog index: 2
+Message index: 6
+Total msg cnt: 13
+Token counts: 401
+Role: assistant
+Content: [[allocate, 0, 1023, 1023], [adjacency_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [message_write, 1, 1, 48], [message_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [scale_write, 0, 1, 48], [scale_write, 0, 1, 48], [allocate, 1, 1023, 1023], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [message_write, 1, 1, 48], [message_write, 0, 1, 48], [message_write, 1, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [scale_write, 1, 1, 48], [scale_write, 0, 1, 48], [scale_write, 1, 1, 48], [deallocate, 0, 0, 0], [deallocate, 1, 0, 0], [message_write, 0, 1, 48], [message_write, 0, 1, 48], [adjacency_write, 0, 1, 48]]
+
+Coverage rate: 9 / 10
+Coverage plan: {'adj_dealloc': 75, 'mess_dealloc': 80, 'scale_dealloc': 68, 'adj_nomatch': 18, 'mess_nomatch': 18, 'scale_nomatch': 12, 'mess_fetch_adj_partial': 135, 'mess_seen': 37, 'scale_seen': 37}
+
+Dialog index: 2
+Message index: 7
+Total msg cnt: 14
+Token counts: 3237
+Role: user
+Content: The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases).
+Do NOT provide any comments, extra remarks, context - only provide a list.
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the DUT is instructed to load the "message queue", and there is no overflow on the "adjacency queue"
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.
+Do NOT provide any comments, extra remarks, context - only provide a list
+
+Dialog index: 2
+Message index: 7
+Total msg cnt: 14
+Token counts: 413
+Role: assistant
+Content: [[allocate, 0, 1023, 1023], [adjacency_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [message_write, 1, 1, 48], [message_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [scale_write, 0, 1, 48], [scale_write, 0, 1, 48], [allocate, 1, 1023, 1023], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [message_write, 1, 1, 48], [message_write, 0, 1, 48], [message_write, 1, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [scale_write, 1, 1, 48], [scale_write, 0, 1, 48], [scale_write, 1, 1, 48], [deallocate, 0, 0, 0], [deallocate, 1, 0, 0], [message_write, 0, 1, 48], [message_write, 0, 1, 48], [message_write, 0, 1, 48], [message_write, 0, 1, 48]]
+
+Coverage rate: 9 / 10
+Coverage plan: {'adj_dealloc': 75, 'mess_dealloc': 84, 'scale_dealloc': 68, 'adj_nomatch': 21, 'mess_nomatch': 21, 'scale_nomatch': 14, 'mess_fetch_adj_partial': 147, 'mess_seen': 42, 'scale_seen': 42}
+
+
+<<<<< RESET >>>>>
+
+
+Dialog index: 3
+Message index: 1
+Total msg cnt: 15
+Token counts: 1100
+Role: user
+Content: You will receive a description of bins (i.e. test cases) of a testbench for a hardware device under test (DUT).
+The purpose of this device is to load data on three different queues: an "adjacency queue" (depth: 64), a "message queue" (depth: 4096), and a "scale factor queue" (depth: 64)
+
+----------
+Now, we want to test the DUT with a list of commands as its input. We want the input to cover the bins (i.e. test cases) that we care about. Here's the description of the bins that we care about:
+------
+BINS DESCRIPTION
+- You provide a list of lists, in the format: [string, int, int, int]. The internal lists will be interpreted as sequential instructions for a DUT.
+- The DUT is a device that includes three queues (RAM): an "adjacency queue" (depth: 64), a "message queue" (depth: 4096), and a "scale factor queue" (depth: 64)
+- The actual data the queues are loaded with is not important.
+- The three integers you provide are called:
+    - First integer: "nodeslot" (provide a number between 63 and 0)
+    - Second integer: "feature_count" (provide a number between 1023 and 1)
+    - Third integer: "neighbour_count" (provide a number between 1023 and 1)
+- The string in the internal lists defines the operation performed on the DUT. The operations are as follows:
+    - "allocate": you allocate the DUT a "nodeslot". You also allocate the DUT a "feature_count". "feature_count" should be at least 1. Keep note of the nodeslot you allocated to. You will need it to hit the majority of the coverage bins.
+    - "deallocate": you deallocate the DUT, it will not be allocated to any "nodeslot", and the "feature_count" is reset to 0. (do NOT use this often)
+    - "adjacency_write": you instruct the DUT to load data into the "adjacency queue". You have to provide the "nodeslot". The number of items loaded is equal to "neighbour_count" divided by 16, rounded up. "neighbour_count" should be at least 1.
+    - "message_write": you instruct the DUT to load data into the "adjacency queue". You have to provide the "nodeslot". The number of items loaded is equal to "neighbour_count" divided by 16, rounded up, multiplied by the "feature_count".
+    - "scale_write": you instruct the DUT to load data into the "scale factor queue". You have to provide the "nodeslot". The number of items loaded is equal to "neighbour_count".
+ONLY USE THE ABOVE MENTIONED STRINGS IN YOUR INSTRUCTIONS
+- You need to cover each of the following bins with your commands (an overflow occurs on a queue if the previous instruction tried to load more data on the queue than its depth):
+---
+    - adj_dealloc - the DUT is instructed to load the "adjacency queue", but the DUT was not allocated a "nodeslot"
+    - mess_dealloc - the DUT is instructed to load the "message queue", but the DUT was not allocated a "nodeslot"
+    - scale_dealloc - the DUT is instructed to load the "scale factor queue", but the DUT was not allocated a "nodeslot"
+    - adj_nomatch - the DUT is instructed to load the "adjacency queue", but the "nodeslot" provided for this command does not match the "nodeslot" allocated to the DUT
+    - mess_nomatch - the DUT is instructed to load the "message queue", but the "nodeslot" provided for this command does not match the "nodeslot" allocated to the DUT
+    - scale_nomatch - the DUT is instructed to load the "scale factor queue", but the "nodeslot" provided for this command does not match the "nodeslot" allocated to the DUT
+    - mess_fetch_adj_nopartial - the DUT is instructed to load the "message queue", and there is no overflow on the "adjacency queue"
+    - mess_fetch_adj_partial - the DUT is instructed to load the "message queue", and there is overflow on the "adjacency queue"
+    - mess_seen - data is loaded on the "message queue"
+    - scale_seen - data is loaded on the "scale queue"
+---
+------
+
+----------
+Following the bins description, generate a list of integer pairs which covers the described bins as much as you can.
+
+
+Dialog index: 3
+Message index: 1
+Total msg cnt: 15
+Token counts: 600
+Role: assistant
+Content: [[allocate, 0, 1023, 1023], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [adjacency_write, 2, 1, 48], [adjacency_write, 3, 1, 48], [adjacency_write, 4, 1, 48], [adjacency_write, 5, 1, 48], [adjacency_write, 6, 1, 48], [adjacency_write, 7, 1, 48], [adjacency_write, 8, 1, 48], [adjacency_write, 9, 1, 48], [adjacency_write, 10, 1, 48], [adjacency_write, 11, 1, 48], [adjacency_write, 12, 1, 48], [adjacency_write, 13, 1, 48], [adjacency_write, 14, 1, 48], [adjacency_write, 15, 1, 48], [message_write, 0, 1, 48], [message_write, 0, 2, 48], [message_write, 0, 3, 48], [message_write, 0, 4, 48], [message_write, 0, 5, 48], [message_write, 0, 6, 48], [message_write, 0, 7, 48], [message_write, 0, 8, 48], [message_write, 0, 9, 48], [message_write, 0, 10, 48], [message_write, 0, 11, 48], [message_write, 0, 12, 48], [message_write, 0, 13, 48], [message_write, 0, 14, 48], [message_write, 0, 15, 48], [message_write, 0, 16, 48], [message_write, 0, 17, 48], [message_write, 0, 18, 48], [message_write, 0, 19, 48], [message_write, 0, 20, 48], [message_write, 0, 21, 48], [message_write, 0, 22, 48], [message_write, 0, 23, 48], [message_write, 0, 24, 48], [message_write, 0, 25, 48], [message_write, 0, 26, 48], [message_write, 0, 27, 48], [message_write, 0, 28, 
+
+Coverage rate: 9 / 10
+Coverage plan: {'adj_dealloc': 75, 'mess_dealloc': 84, 'scale_dealloc': 68, 'adj_nomatch': 36, 'mess_nomatch': 21, 'scale_nomatch': 14, 'mess_fetch_adj_partial': 175, 'mess_seen': 70, 'scale_seen': 42}
+
+Dialog index: 3
+Message index: 2
+Total msg cnt: 16
+Token counts: 1840
+Role: user
+Content: The values you provided failed to cover all the bins.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases).
+Do NOT provide any comments, extra remarks, context - only provide a list.
+Here are some of the unreached bins:
+------
+UNREACHED BINS
+the DUT is instructed to load the "message queue", and there is no overflow on the "adjacency queue"
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.
+Do NOT provide any comments, extra remarks, context - only provide a list
+
+Dialog index: 3
+Message index: 2
+Total msg cnt: 16
+Token counts: 600
+Role: assistant
+Content: [[allocate, 0, 1023, 1023], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [adjacency_write, 2, 1, 48], [adjacency_write, 3, 1, 48], [adjacency_write, 4, 1, 48], [adjacency_write, 5, 1, 48], [adjacency_write, 6, 1, 48], [adjacency_write, 7, 1, 48], [adjacency_write, 8, 1, 48], [adjacency_write, 9, 1, 48], [adjacency_write, 10, 1, 48], [adjacency_write, 11, 1, 48], [adjacency_write, 12, 1, 48], [adjacency_write, 13, 1, 48], [adjacency_write, 14, 1, 48], [adjacency_write, 15, 1, 48], [message_write, 0, 1, 48], [message_write, 0, 2, 48], [message_write, 0, 3, 48], [message_write, 0, 4, 48], [message_write, 0, 5, 48], [message_write, 0, 6, 48], [message_write, 0, 7, 48], [message_write, 0, 8, 48], [message_write, 0, 9, 48], [message_write, 0, 10, 48], [message_write, 0, 11, 48], [message_write, 0, 12, 48], [message_write, 0, 13, 48], [message_write, 0, 14, 48], [message_write, 0, 15, 48], [message_write, 0, 16, 48], [message_write, 0, 17, 48], [message_write, 0, 18, 48], [message_write, 0, 19, 48], [message_write, 0, 20, 48], [message_write, 0, 21, 48], [message_write, 0, 22, 48], [message_write, 0, 23, 48], [message_write, 0, 24, 48], [message_write, 0, 25, 48], [message_write, 0, 26, 48], [message_write, 0, 27, 48], [message_write, 0, 28, 
+
+Coverage rate: 9 / 10
+Coverage plan: {'adj_dealloc': 75, 'mess_dealloc': 84, 'scale_dealloc': 68, 'adj_nomatch': 51, 'mess_nomatch': 21, 'scale_nomatch': 14, 'mess_fetch_adj_partial': 203, 'mess_seen': 98, 'scale_seen': 42}
+
+Dialog index: 3
+Message index: 3
+Total msg cnt: 17
+Token counts: 2599
+Role: user
+Content: The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases).
+Do NOT provide any comments, extra remarks, context - only provide a list.
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the DUT is instructed to load the "message queue", and there is no overflow on the "adjacency queue"
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.
+Do NOT provide any comments, extra remarks, context - only provide a list
+
+Dialog index: 3
+Message index: 3
+Total msg cnt: 17
+Token counts: 600
+Role: assistant
+Content: [[allocate, 0, 1023, 1023], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [adjacency_write, 2, 1, 48], [adjacency_write, 3, 1, 48], [adjacency_write, 4, 1, 48], [adjacency_write, 5, 1, 48], [adjacency_write, 6, 1, 48], [adjacency_write, 7, 1, 48], [adjacency_write, 8, 1, 48], [adjacency_write, 9, 1, 48], [adjacency_write, 10, 1, 48], [adjacency_write, 11, 1, 48], [adjacency_write, 12, 1, 48], [adjacency_write, 13, 1, 48], [adjacency_write, 14, 1, 48], [adjacency_write, 15, 1, 48], [message_write, 0, 1, 48], [message_write, 0, 2, 48], [message_write, 0, 3, 48], [message_write, 0, 4, 48], [message_write, 0, 5, 48], [message_write, 0, 6, 48], [message_write, 0, 7, 48], [message_write, 0, 8, 48], [message_write, 0, 9, 48], [message_write, 0, 10, 48], [message_write, 0, 11, 48], [message_write, 0, 12, 48], [message_write, 0, 13, 48], [message_write, 0, 14, 48], [message_write, 0, 15, 48], [message_write, 0, 16, 48], [message_write, 0, 17, 48], [message_write, 0, 18, 48], [message_write, 0, 19, 48], [message_write, 0, 20, 48], [message_write, 0, 21, 48], [message_write, 0, 22, 48], [message_write, 0, 23, 48], [message_write, 0, 24, 48], [message_write, 0, 25, 48], [message_write, 0, 26, 48], [message_write, 0, 27, 48], [message_write, 0, 28, 
+
+Coverage rate: 9 / 10
+Coverage plan: {'adj_dealloc': 75, 'mess_dealloc': 84, 'scale_dealloc': 68, 'adj_nomatch': 66, 'mess_nomatch': 21, 'scale_nomatch': 14, 'mess_fetch_adj_partial': 231, 'mess_seen': 126, 'scale_seen': 42}
+
+Dialog index: 3
+Message index: 4
+Total msg cnt: 18
+Token counts: 3358
+Role: user
+Content: The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases).
+Do NOT provide any comments, extra remarks, context - only provide a list.
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the DUT is instructed to load the "message queue", and there is no overflow on the "adjacency queue"
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.
+Do NOT provide any comments, extra remarks, context - only provide a list
+
+Dialog index: 3
+Message index: 4
+Total msg cnt: 18
+Token counts: 600
+Role: assistant
+Content: [[allocate, 0, 1023, 1023], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [adjacency_write, 2, 1, 48], [adjacency_write, 3, 1, 48], [adjacency_write, 4, 1, 48], [adjacency_write, 5, 1, 48], [adjacency_write, 6, 1, 48], [adjacency_write, 7, 1, 48], [adjacency_write, 8, 1, 48], [adjacency_write, 9, 1, 48], [adjacency_write, 10, 1, 48], [adjacency_write, 11, 1, 48], [adjacency_write, 12, 1, 48], [adjacency_write, 13, 1, 48], [adjacency_write, 14, 1, 48], [adjacency_write, 15, 1, 48], [message_write, 0, 1, 48], [message_write, 0, 2, 48], [message_write, 0, 3, 48], [message_write, 0, 4, 48], [message_write, 0, 5, 48], [message_write, 0, 6, 48], [message_write, 0, 7, 48], [message_write, 0, 8, 48], [message_write, 0, 9, 48], [message_write, 0, 10, 48], [message_write, 0, 11, 48], [message_write, 0, 12, 48], [message_write, 0, 13, 48], [message_write, 0, 14, 48], [message_write, 0, 15, 48], [message_write, 0, 16, 48], [message_write, 0, 17, 48], [message_write, 0, 18, 48], [message_write, 0, 19, 48], [message_write, 0, 20, 48], [message_write, 0, 21, 48], [message_write, 0, 22, 48], [message_write, 0, 23, 48], [message_write, 0, 24, 48], [message_write, 0, 25, 48], [message_write, 0, 26, 48], [message_write, 0, 27, 48], [message_write, 0, 28, 
+
+Coverage rate: 9 / 10
+Coverage plan: {'adj_dealloc': 75, 'mess_dealloc': 84, 'scale_dealloc': 68, 'adj_nomatch': 81, 'mess_nomatch': 21, 'scale_nomatch': 14, 'mess_fetch_adj_partial': 259, 'mess_seen': 154, 'scale_seen': 42}
+
+Dialog index: 3
+Message index: 5
+Total msg cnt: 19
+Token counts: 4117
+Role: user
+Content: The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases).
+Do NOT provide any comments, extra remarks, context - only provide a list.
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the DUT is instructed to load the "message queue", and there is no overflow on the "adjacency queue"
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.
+Do NOT provide any comments, extra remarks, context - only provide a list
+
+Dialog index: 3
+Message index: 5
+Total msg cnt: 19
+Token counts: 600
+Role: assistant
+Content: [[allocate, 0, 1023, 1023], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [adjacency_write, 2, 1, 48], [adjacency_write, 3, 1, 48], [adjacency_write, 4, 1, 48], [adjacency_write, 5, 1, 48], [adjacency_write, 6, 1, 48], [adjacency_write, 7, 1, 48], [adjacency_write, 8, 1, 48], [adjacency_write, 9, 1, 48], [adjacency_write, 10, 1, 48], [adjacency_write, 11, 1, 48], [adjacency_write, 12, 1, 48], [adjacency_write, 13, 1, 48], [adjacency_write, 14, 1, 48], [adjacency_write, 15, 1, 48], [message_write, 0, 1, 48], [message_write, 0, 2, 48], [message_write, 0, 3, 48], [message_write, 0, 4, 48], [message_write, 0, 5, 48], [message_write, 0, 6, 48], [message_write, 0, 7, 48], [message_write, 0, 8, 48], [message_write, 0, 9, 48], [message_write, 0, 10, 48], [message_write, 0, 11, 48], [message_write, 0, 12, 48], [message_write, 0, 13, 48], [message_write, 0, 14, 48], [message_write, 0, 15, 48], [message_write, 0, 16, 48], [message_write, 0, 17, 48], [message_write, 0, 18, 48], [message_write, 0, 19, 48], [message_write, 0, 20, 48], [message_write, 0, 21, 48], [message_write, 0, 22, 48], [message_write, 0, 23, 48], [message_write, 0, 24, 48], [message_write, 0, 25, 48], [message_write, 0, 26, 48], [message_write, 0, 27, 48], [message_write, 0, 28, 
+
+Coverage rate: 9 / 10
+Coverage plan: {'adj_dealloc': 75, 'mess_dealloc': 84, 'scale_dealloc': 68, 'adj_nomatch': 96, 'mess_nomatch': 21, 'scale_nomatch': 14, 'mess_fetch_adj_partial': 287, 'mess_seen': 182, 'scale_seen': 42}
+
+Dialog index: 3
+Message index: 6
+Total msg cnt: 20
+Token counts: 3492
+Role: user
+Content: The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases).
+Do NOT provide any comments, extra remarks, context - only provide a list.
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the DUT is instructed to load the "message queue", and there is no overflow on the "adjacency queue"
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.
+Do NOT provide any comments, extra remarks, context - only provide a list
+
+Dialog index: 3
+Message index: 6
+Total msg cnt: 20
+Token counts: 414
+Role: assistant
+Content: [[allocate, 0, 1023, 1023], [adjacency_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [message_write, 1, 1, 48], [message_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [scale_write, 0, 1, 48], [scale_write, 0, 1, 48], [allocate, 1, 1023, 1023], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [message_write, 1, 1, 48], [message_write, 0, 1, 48], [message_write, 1, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [scale_write, 1, 1, 48], [scale_write, 0, 1, 48], [scale_write, 1, 1, 48], [deallocate, 0, 0, 0], [deallocate, 1, 0, 0], [message_write, 0, 1, 48], [message_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48]]
+
+Coverage rate: 9 / 10
+Coverage plan: {'adj_dealloc': 76, 'mess_dealloc': 87, 'scale_dealloc': 68, 'adj_nomatch': 99, 'mess_nomatch': 24, 'scale_nomatch': 16, 'mess_fetch_adj_partial': 298, 'mess_seen': 187, 'scale_seen': 47}
+
+Dialog index: 3
+Message index: 7
+Total msg cnt: 21
+Token counts: 3818
+Role: user
+Content: The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases).
+Do NOT provide any comments, extra remarks, context - only provide a list.
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the DUT is instructed to load the "message queue", and there is no overflow on the "adjacency queue"
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.
+Do NOT provide any comments, extra remarks, context - only provide a list
+
+Dialog index: 3
+Message index: 7
+Total msg cnt: 21
+Token counts: 400
+Role: assistant
+Content: [[allocate, 0, 1023, 1023], [adjacency_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [message_write, 1, 1, 48], [message_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [scale_write, 0, 1, 48], [scale_write, 0, 1, 48], [allocate, 1, 1023, 1023], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [message_write, 1, 1, 48], [message_write, 0, 1, 48], [message_write, 1, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [scale_write, 1, 1, 48], [scale_write, 0, 1, 48], [scale_write, 1, 1, 48], [deallocate, 0, 0, 0], [deallocate, 1, 0, 0], [message_write, 0, 1, 48], [message_write, 0, 1, 48], [message_write, 0, 1, 48]]
+
+Coverage rate: 9 / 10
+Coverage plan: {'adj_dealloc': 76, 'mess_dealloc': 90, 'scale_dealloc': 68, 'adj_nomatch': 102, 'mess_nomatch': 27, 'scale_nomatch': 18, 'mess_fetch_adj_partial': 309, 'mess_seen': 192, 'scale_seen': 52}
+
+
+<<<<< RESET >>>>>
+
+
+Dialog index: 4
+Message index: 1
+Total msg cnt: 22
+Token counts: 1100
+Role: user
+Content: You will receive a description of bins (i.e. test cases) of a testbench for a hardware device under test (DUT).
+The purpose of this device is to load data on three different queues: an "adjacency queue" (depth: 64), a "message queue" (depth: 4096), and a "scale factor queue" (depth: 64)
+
+----------
+Now, we want to test the DUT with a list of commands as its input. We want the input to cover the bins (i.e. test cases) that we care about. Here's the description of the bins that we care about:
+------
+BINS DESCRIPTION
+- You provide a list of lists, in the format: [string, int, int, int]. The internal lists will be interpreted as sequential instructions for a DUT.
+- The DUT is a device that includes three queues (RAM): an "adjacency queue" (depth: 64), a "message queue" (depth: 4096), and a "scale factor queue" (depth: 64)
+- The actual data the queues are loaded with is not important.
+- The three integers you provide are called:
+    - First integer: "nodeslot" (provide a number between 63 and 0)
+    - Second integer: "feature_count" (provide a number between 1023 and 1)
+    - Third integer: "neighbour_count" (provide a number between 1023 and 1)
+- The string in the internal lists defines the operation performed on the DUT. The operations are as follows:
+    - "allocate": you allocate the DUT a "nodeslot". You also allocate the DUT a "feature_count". "feature_count" should be at least 1. Keep note of the nodeslot you allocated to. You will need it to hit the majority of the coverage bins.
+    - "deallocate": you deallocate the DUT, it will not be allocated to any "nodeslot", and the "feature_count" is reset to 0. (do NOT use this often)
+    - "adjacency_write": you instruct the DUT to load data into the "adjacency queue". You have to provide the "nodeslot". The number of items loaded is equal to "neighbour_count" divided by 16, rounded up. "neighbour_count" should be at least 1.
+    - "message_write": you instruct the DUT to load data into the "adjacency queue". You have to provide the "nodeslot". The number of items loaded is equal to "neighbour_count" divided by 16, rounded up, multiplied by the "feature_count".
+    - "scale_write": you instruct the DUT to load data into the "scale factor queue". You have to provide the "nodeslot". The number of items loaded is equal to "neighbour_count".
+ONLY USE THE ABOVE MENTIONED STRINGS IN YOUR INSTRUCTIONS
+- You need to cover each of the following bins with your commands (an overflow occurs on a queue if the previous instruction tried to load more data on the queue than its depth):
+---
+    - adj_dealloc - the DUT is instructed to load the "adjacency queue", but the DUT was not allocated a "nodeslot"
+    - mess_dealloc - the DUT is instructed to load the "message queue", but the DUT was not allocated a "nodeslot"
+    - scale_dealloc - the DUT is instructed to load the "scale factor queue", but the DUT was not allocated a "nodeslot"
+    - adj_nomatch - the DUT is instructed to load the "adjacency queue", but the "nodeslot" provided for this command does not match the "nodeslot" allocated to the DUT
+    - mess_nomatch - the DUT is instructed to load the "message queue", but the "nodeslot" provided for this command does not match the "nodeslot" allocated to the DUT
+    - scale_nomatch - the DUT is instructed to load the "scale factor queue", but the "nodeslot" provided for this command does not match the "nodeslot" allocated to the DUT
+    - mess_fetch_adj_nopartial - the DUT is instructed to load the "message queue", and there is no overflow on the "adjacency queue"
+    - mess_fetch_adj_partial - the DUT is instructed to load the "message queue", and there is overflow on the "adjacency queue"
+    - mess_seen - data is loaded on the "message queue"
+    - scale_seen - data is loaded on the "scale queue"
+---
+------
+
+----------
+Following the bins description, generate a list of integer pairs which covers the described bins as much as you can.
+
+
+Dialog index: 4
+Message index: 1
+Total msg cnt: 22
+Token counts: 107
+Role: assistant
+Content: [[allocate, 0, 1023, 1023], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [message_write, 0, 1, 48], [message_write, 1, 1, 48], [scale_write, 0, 1, 48], [scale_write, 1, 1, 48], [deallocate, 0, 0, 0]]
+
+Coverage rate: 9 / 10
+Coverage plan: {'adj_dealloc': 76, 'mess_dealloc': 90, 'scale_dealloc': 68, 'adj_nomatch': 103, 'mess_nomatch': 28, 'scale_nomatch': 19, 'mess_fetch_adj_partial': 311, 'mess_seen': 193, 'scale_seen': 53}
+
+Dialog index: 4
+Message index: 2
+Total msg cnt: 23
+Token counts: 1347
+Role: user
+Content: The values you provided failed to cover all the bins.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases).
+Do NOT provide any comments, extra remarks, context - only provide a list.
+Here are some of the unreached bins:
+------
+UNREACHED BINS
+the DUT is instructed to load the "message queue", and there is no overflow on the "adjacency queue"
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.
+Do NOT provide any comments, extra remarks, context - only provide a list
+
+Dialog index: 4
+Message index: 2
+Total msg cnt: 23
+Token counts: 120
+Role: assistant
+Content: [[allocate, 0, 1023, 1023], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [message_write, 0, 1, 48], [message_write, 1, 1, 48], [scale_write, 0, 1, 48], [scale_write, 1, 1, 48], [deallocate, 0, 0, 0], [message_write, 0, 1, 48]]
+
+Coverage rate: 9 / 10
+Coverage plan: {'adj_dealloc': 76, 'mess_dealloc': 91, 'scale_dealloc': 68, 'adj_nomatch': 104, 'mess_nomatch': 29, 'scale_nomatch': 20, 'mess_fetch_adj_partial': 314, 'mess_seen': 194, 'scale_seen': 54}
+
+Dialog index: 4
+Message index: 3
+Total msg cnt: 24
+Token counts: 1626
+Role: user
+Content: The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases).
+Do NOT provide any comments, extra remarks, context - only provide a list.
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the DUT is instructed to load the "message queue", and there is no overflow on the "adjacency queue"
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.
+Do NOT provide any comments, extra remarks, context - only provide a list
+
+Dialog index: 4
+Message index: 3
+Total msg cnt: 24
+Token counts: 134
+Role: assistant
+Content: [[allocate, 0, 1023, 1023], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [message_write, 0, 1, 48], [message_write, 1, 1, 48], [scale_write, 0, 1, 48], [scale_write, 1, 1, 48], [deallocate, 0, 0, 0], [message_write, 0, 1, 48], [adjacency_write, 0, 1, 48]]
+
+Coverage rate: 9 / 10
+Coverage plan: {'adj_dealloc': 77, 'mess_dealloc': 92, 'scale_dealloc': 68, 'adj_nomatch': 105, 'mess_nomatch': 30, 'scale_nomatch': 21, 'mess_fetch_adj_partial': 317, 'mess_seen': 195, 'scale_seen': 55}
+
+Dialog index: 4
+Message index: 4
+Total msg cnt: 25
+Token counts: 1919
+Role: user
+Content: The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases).
+Do NOT provide any comments, extra remarks, context - only provide a list.
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the DUT is instructed to load the "message queue", and there is no overflow on the "adjacency queue"
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.
+Do NOT provide any comments, extra remarks, context - only provide a list
+
+Dialog index: 4
+Message index: 4
+Total msg cnt: 25
+Token counts: 147
+Role: assistant
+Content: [[allocate, 0, 1023, 1023], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [message_write, 0, 1, 48], [message_write, 1, 1, 48], [scale_write, 0, 1, 48], [scale_write, 1, 1, 48], [deallocate, 0, 0, 0], [message_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 1]]
+
+Coverage rate: 9 / 10
+Coverage plan: {'adj_dealloc': 78, 'mess_dealloc': 94, 'scale_dealloc': 68, 'adj_nomatch': 106, 'mess_nomatch': 31, 'scale_nomatch': 22, 'mess_fetch_adj_partial': 321, 'mess_seen': 196, 'scale_seen': 56}
+
+Dialog index: 4
+Message index: 5
+Total msg cnt: 26
+Token counts: 2225
+Role: user
+Content: The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases).
+Do NOT provide any comments, extra remarks, context - only provide a list.
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the DUT is instructed to load the "message queue", and there is no overflow on the "adjacency queue"
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.
+Do NOT provide any comments, extra remarks, context - only provide a list
+
+Dialog index: 4
+Message index: 5
+Total msg cnt: 26
+Token counts: 161
+Role: assistant
+Content: [[allocate, 0, 1023, 1023], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [message_write, 0, 1, 48], [message_write, 1, 1, 48], [scale_write, 0, 1, 48], [scale_write, 1, 1, 48], [deallocate, 0, 0, 0], [message_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [adjacency_write, 1, 1, 1]]
+
+Coverage rate: 9 / 10
+Coverage plan: {'adj_dealloc': 80, 'mess_dealloc': 96, 'scale_dealloc': 68, 'adj_nomatch': 107, 'mess_nomatch': 32, 'scale_nomatch': 23, 'mess_fetch_adj_partial': 325, 'mess_seen': 197, 'scale_seen': 57}
+
+Dialog index: 4
+Message index: 6
+Total msg cnt: 27
+Token counts: 3618
+Role: user
+Content: The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases).
+Do NOT provide any comments, extra remarks, context - only provide a list.
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the DUT is instructed to load the "message queue", and there is no overflow on the "adjacency queue"
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.
+Do NOT provide any comments, extra remarks, context - only provide a list
+
+Dialog index: 4
+Message index: 6
+Total msg cnt: 27
+Token counts: 600
+Role: assistant
+Content: [[allocate, 0, 1023, 1023], [adjacency_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [message_write, 1, 1, 48], [message_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [scale_write, 0, 1, 48], [scale_write, 0, 1, 48], [allocate, 1, 1023, 1023], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [message_write, 1, 1, 48], [message_write, 0, 1, 48], [message_write, 1, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [scale_write, 1, 1, 48], [scale_write, 0, 1, 48], [scale_write, 1, 1, 48], [deallocate, 0, 0, 0], [deallocate, 1, 0, 0], [message_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [scale_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48
+
+Coverage rate: 9 / 10
+Coverage plan: {'adj_dealloc': 86, 'mess_dealloc': 103, 'scale_dealloc': 73, 'adj_nomatch': 110, 'mess_nomatch': 35, 'scale_nomatch': 25, 'mess_fetch_adj_partial': 340, 'mess_seen': 202, 'scale_seen': 62}
+
+Dialog index: 4
+Message index: 7
+Total msg cnt: 28
+Token counts: 3018
+Role: user
+Content: The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases).
+Do NOT provide any comments, extra remarks, context - only provide a list.
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the DUT is instructed to load the "message queue", and there is no overflow on the "adjacency queue"
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.
+Do NOT provide any comments, extra remarks, context - only provide a list
+
+Dialog index: 4
+Message index: 7
+Total msg cnt: 28
+Token counts: 174
+Role: assistant
+Content: [[allocate, 0, 1023, 1023], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [message_write, 0, 1, 48], [message_write, 1, 1, 48], [scale_write, 0, 1, 48], [scale_write, 1, 1, 48], [deallocate, 0, 0, 0], [message_write, 0, 1, 48], [adjacency_write, 0, 1, 48], [message_write, 0, 1, 48], [adjacency_write, 1, 1, 1], [message_write, 0, 1, 1]]
+
+Coverage rate: 9 / 10
+Coverage plan: {'adj_dealloc': 88, 'mess_dealloc': 106, 'scale_dealloc': 73, 'adj_nomatch': 111, 'mess_nomatch': 36, 'scale_nomatch': 26, 'mess_fetch_adj_partial': 345, 'mess_seen': 203, 'scale_seen': 63}
+
+
+<<<<< RESET >>>>>
+
+
+Dialog index: 5
+Message index: 1
+Total msg cnt: 29
+Token counts: 1100
+Role: user
+Content: You will receive a description of bins (i.e. test cases) of a testbench for a hardware device under test (DUT).
+The purpose of this device is to load data on three different queues: an "adjacency queue" (depth: 64), a "message queue" (depth: 4096), and a "scale factor queue" (depth: 64)
+
+----------
+Now, we want to test the DUT with a list of commands as its input. We want the input to cover the bins (i.e. test cases) that we care about. Here's the description of the bins that we care about:
+------
+BINS DESCRIPTION
+- You provide a list of lists, in the format: [string, int, int, int]. The internal lists will be interpreted as sequential instructions for a DUT.
+- The DUT is a device that includes three queues (RAM): an "adjacency queue" (depth: 64), a "message queue" (depth: 4096), and a "scale factor queue" (depth: 64)
+- The actual data the queues are loaded with is not important.
+- The three integers you provide are called:
+    - First integer: "nodeslot" (provide a number between 63 and 0)
+    - Second integer: "feature_count" (provide a number between 1023 and 1)
+    - Third integer: "neighbour_count" (provide a number between 1023 and 1)
+- The string in the internal lists defines the operation performed on the DUT. The operations are as follows:
+    - "allocate": you allocate the DUT a "nodeslot". You also allocate the DUT a "feature_count". "feature_count" should be at least 1. Keep note of the nodeslot you allocated to. You will need it to hit the majority of the coverage bins.
+    - "deallocate": you deallocate the DUT, it will not be allocated to any "nodeslot", and the "feature_count" is reset to 0. (do NOT use this often)
+    - "adjacency_write": you instruct the DUT to load data into the "adjacency queue". You have to provide the "nodeslot". The number of items loaded is equal to "neighbour_count" divided by 16, rounded up. "neighbour_count" should be at least 1.
+    - "message_write": you instruct the DUT to load data into the "adjacency queue". You have to provide the "nodeslot". The number of items loaded is equal to "neighbour_count" divided by 16, rounded up, multiplied by the "feature_count".
+    - "scale_write": you instruct the DUT to load data into the "scale factor queue". You have to provide the "nodeslot". The number of items loaded is equal to "neighbour_count".
+ONLY USE THE ABOVE MENTIONED STRINGS IN YOUR INSTRUCTIONS
+- You need to cover each of the following bins with your commands (an overflow occurs on a queue if the previous instruction tried to load more data on the queue than its depth):
+---
+    - adj_dealloc - the DUT is instructed to load the "adjacency queue", but the DUT was not allocated a "nodeslot"
+    - mess_dealloc - the DUT is instructed to load the "message queue", but the DUT was not allocated a "nodeslot"
+    - scale_dealloc - the DUT is instructed to load the "scale factor queue", but the DUT was not allocated a "nodeslot"
+    - adj_nomatch - the DUT is instructed to load the "adjacency queue", but the "nodeslot" provided for this command does not match the "nodeslot" allocated to the DUT
+    - mess_nomatch - the DUT is instructed to load the "message queue", but the "nodeslot" provided for this command does not match the "nodeslot" allocated to the DUT
+    - scale_nomatch - the DUT is instructed to load the "scale factor queue", but the "nodeslot" provided for this command does not match the "nodeslot" allocated to the DUT
+    - mess_fetch_adj_nopartial - the DUT is instructed to load the "message queue", and there is no overflow on the "adjacency queue"
+    - mess_fetch_adj_partial - the DUT is instructed to load the "message queue", and there is overflow on the "adjacency queue"
+    - mess_seen - data is loaded on the "message queue"
+    - scale_seen - data is loaded on the "scale queue"
+---
+------
+
+----------
+Following the bins description, generate a list of integer pairs which covers the described bins as much as you can.
+
+
+Dialog index: 5
+Message index: 1
+Total msg cnt: 29
+Token counts: 600
+Role: assistant
+Content: [[allocate, 0, 1023, 1023], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [adjacency_write, 2, 1, 48], [adjacency_write, 3, 1, 48], [adjacency_write, 4, 1, 48], [adjacency_write, 5, 1, 48], [adjacency_write, 6, 1, 48], [adjacency_write, 7, 1, 48], [adjacency_write, 8, 1, 48], [adjacency_write, 9, 1, 48], [adjacency_write, 10, 1, 48], [adjacency_write, 11, 1, 48], [adjacency_write, 12, 1, 48], [adjacency_write, 13, 1, 48], [adjacency_write, 14, 1, 48], [adjacency_write, 15, 1, 48], [adjacency_write, 16, 1, 48], [adjacency_write, 17, 1, 48], [adjacency_write, 18, 1, 48], [adjacency_write, 19, 1, 48], [adjacency_write, 20, 1, 48], [adjacency_write, 21, 1, 48], [adjacency_write, 22, 1, 48], [adjacency_write, 23, 1, 48], [adjacency_write, 24, 1, 48], [adjacency_write, 25, 1, 48], [adjacency_write, 26, 1, 48], [adjacency_write, 27, 1, 48], [adjacency_write, 28, 1, 48], [adjacency_write, 29, 1, 48], [adjacency_write, 30, 1, 48], [adjacency_write, 31, 1, 48], [adjacency_write, 32, 1, 48], [adjacency_write, 33, 1, 48], [adjacency_write, 34, 1, 48], [adjacency_write, 35, 1, 48], [adjacency_write, 36, 1, 48], [adjacency_write, 37, 1, 48], [adjacency_write, 38, 1, 48], [adjacency_write, 39, 1, 48], [adjacency_write, 40, 1, 48], [adjacency_write, 41, 1, 
+
+Coverage rate: 9 / 10
+Coverage plan: {'adj_dealloc': 88, 'mess_dealloc': 106, 'scale_dealloc': 73, 'adj_nomatch': 152, 'mess_nomatch': 36, 'scale_nomatch': 26, 'mess_fetch_adj_partial': 345, 'mess_seen': 203, 'scale_seen': 63}
+
+Dialog index: 5
+Message index: 2
+Total msg cnt: 30
+Token counts: 1840
+Role: user
+Content: The values you provided failed to cover all the bins.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases).
+Do NOT provide any comments, extra remarks, context - only provide a list.
+Here are some of the unreached bins:
+------
+UNREACHED BINS
+the DUT is instructed to load the "message queue", and there is no overflow on the "adjacency queue"
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.
+Do NOT provide any comments, extra remarks, context - only provide a list
+
+Dialog index: 5
+Message index: 2
+Total msg cnt: 30
+Token counts: 600
+Role: assistant
+Content: [[allocate, 0, 1023, 1023], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [adjacency_write, 2, 1, 48], [adjacency_write, 3, 1, 48], [adjacency_write, 4, 1, 48], [adjacency_write, 5, 1, 48], [adjacency_write, 6, 1, 48], [adjacency_write, 7, 1, 48], [adjacency_write, 8, 1, 48], [adjacency_write, 9, 1, 48], [adjacency_write, 10, 1, 48], [adjacency_write, 11, 1, 48], [adjacency_write, 12, 1, 48], [adjacency_write, 13, 1, 48], [adjacency_write, 14, 1, 48], [adjacency_write, 15, 1, 48], [adjacency_write, 16, 1, 48], [adjacency_write, 17, 1, 48], [adjacency_write, 18, 1, 48], [adjacency_write, 19, 1, 48], [adjacency_write, 20, 1, 48], [adjacency_write, 21, 1, 48], [adjacency_write, 22, 1, 48], [adjacency_write, 23, 1, 48], [adjacency_write, 24, 1, 48], [adjacency_write, 25, 1, 48], [adjacency_write, 26, 1, 48], [adjacency_write, 27, 1, 48], [adjacency_write, 28, 1, 48], [adjacency_write, 29, 1, 48], [adjacency_write, 30, 1, 48], [adjacency_write, 31, 1, 48], [adjacency_write, 32, 1, 48], [adjacency_write, 33, 1, 48], [adjacency_write, 34, 1, 48], [adjacency_write, 35, 1, 48], [adjacency_write, 36, 1, 48], [adjacency_write, 37, 1, 48], [adjacency_write, 38, 1, 48], [adjacency_write, 39, 1, 48], [adjacency_write, 40, 1, 48], [adjacency_write, 41, 1, 
+
+Coverage rate: 9 / 10
+Coverage plan: {'adj_dealloc': 88, 'mess_dealloc': 106, 'scale_dealloc': 73, 'adj_nomatch': 193, 'mess_nomatch': 36, 'scale_nomatch': 26, 'mess_fetch_adj_partial': 345, 'mess_seen': 203, 'scale_seen': 63}
+
+Dialog index: 5
+Message index: 3
+Total msg cnt: 31
+Token counts: 2599
+Role: user
+Content: The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases).
+Do NOT provide any comments, extra remarks, context - only provide a list.
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the DUT is instructed to load the "message queue", and there is no overflow on the "adjacency queue"
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.
+Do NOT provide any comments, extra remarks, context - only provide a list
+
+Dialog index: 5
+Message index: 3
+Total msg cnt: 31
+Token counts: 600
+Role: assistant
+Content: [[allocate, 0, 1023, 1023], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [adjacency_write, 2, 1, 48], [adjacency_write, 3, 1, 48], [adjacency_write, 4, 1, 48], [adjacency_write, 5, 1, 48], [adjacency_write, 6, 1, 48], [adjacency_write, 7, 1, 48], [adjacency_write, 8, 1, 48], [adjacency_write, 9, 1, 48], [adjacency_write, 10, 1, 48], [adjacency_write, 11, 1, 48], [adjacency_write, 12, 1, 48], [adjacency_write, 13, 1, 48], [adjacency_write, 14, 1, 48], [adjacency_write, 15, 1, 48], [adjacency_write, 16, 1, 48], [adjacency_write, 17, 1, 48], [adjacency_write, 18, 1, 48], [adjacency_write, 19, 1, 48], [adjacency_write, 20, 1, 48], [adjacency_write, 21, 1, 48], [adjacency_write, 22, 1, 48], [adjacency_write, 23, 1, 48], [adjacency_write, 24, 1, 48], [adjacency_write, 25, 1, 48], [adjacency_write, 26, 1, 48], [adjacency_write, 27, 1, 48], [adjacency_write, 28, 1, 48], [adjacency_write, 29, 1, 48], [adjacency_write, 30, 1, 48], [adjacency_write, 31, 1, 48], [adjacency_write, 32, 1, 48], [adjacency_write, 33, 1, 48], [adjacency_write, 34, 1, 48], [adjacency_write, 35, 1, 48], [adjacency_write, 36, 1, 48], [adjacency_write, 37, 1, 48], [adjacency_write, 38, 1, 48], [adjacency_write, 39, 1, 48], [adjacency_write, 40, 1, 48], [adjacency_write, 41, 1, 
+
+Coverage rate: 9 / 10
+Coverage plan: {'adj_dealloc': 88, 'mess_dealloc': 106, 'scale_dealloc': 73, 'adj_nomatch': 234, 'mess_nomatch': 36, 'scale_nomatch': 26, 'mess_fetch_adj_partial': 345, 'mess_seen': 203, 'scale_seen': 63}
+
+Dialog index: 5
+Message index: 4
+Total msg cnt: 32
+Token counts: 3358
+Role: user
+Content: The new values you just provided didn't cover any new bins. You need to try to cover as much of the described bins as you can.
+You will see the result coverage of your previous response(s), and then generate another list of integer pairs to cover the unreached bins (i.e. test cases).
+Do NOT provide any comments, extra remarks, context - only provide a list.
+Here are some of  the unreached bins:
+------
+UNREACHED BINS
+the DUT is instructed to load the "message queue", and there is no overflow on the "adjacency queue"
+------
+Please regenerate commands for the still unreached bins according to the BINS DESCRIPTION.
+Do NOT provide any comments, extra remarks, context - only provide a list
+
+Dialog index: 5
+Message index: 4
+Total msg cnt: 32
+Token counts: 600
+Role: assistant
+Content: [[allocate, 0, 1023, 1023], [adjacency_write, 0, 1, 48], [adjacency_write, 1, 1, 48], [adjacency_write, 2, 1, 48], [adjacency_write, 3, 1, 48], [adjacency_write, 4, 1, 48], [adjacency_write, 5, 1, 48], [adjacency_write, 6, 1, 48], [adjacency_write, 7, 1, 48], [adjacency_write, 8, 1, 48], [adjacency_write, 9, 1, 48], [adjacency_write, 10, 1, 48], [adjacency_write, 11, 1, 48], [adjacency_write, 12, 1, 48], [adjacency_write, 13, 1, 48], [adjacency_write, 14, 1, 48], [adjacency_write, 15, 1, 48], [adjacency_write, 16, 1, 48], [adjacency_write, 17, 1, 48], [adjacency_write, 18, 1, 48], [adjacency_write, 19, 1, 48], [adjacency_write, 20, 1, 48], [adjacency_write, 21, 1, 48], [adjacency_write, 22, 1, 48], [adjacency_write, 23, 1, 48], [adjacency_write, 24, 1, 48], [adjacency_write, 25, 1, 48], [adjacency_write, 26, 1, 48], [adjacency_write, 27, 1, 48], [adjacency_write, 28, 1, 48], [adjacency_write, 29, 1, 48], [adjacency_write, 30, 1, 48], [adjacency_write, 31, 1, 48], [adjacency_write, 32, 1, 48], [adjacency_write, 33, 1, 48], [adjacency_write, 34, 1, 48], [adjacency_write, 35, 1, 48], [adjacency_write, 36, 1, 48], [adjacency_write, 37, 1, 48], [adjacency_write, 38, 1, 48], [adjacency_write, 39, 1, 48], [adjacency_write, 40, 1, 48], [adjacency_write, 41, 1, 
+
+Coverage rate: 9 / 10
+Coverage plan: {'adj_dealloc': 88, 'mess_dealloc': 106, 'scale_dealloc': 73, 'adj_nomatch': 275, 'mess_nomatch': 36, 'scale_nomatch': 26, 'mess_fetch_adj_partial': 345, 'mess_seen': 203, 'scale_seen': 63}
+
+Coverage rate: 9 / 10
+Coverage plan: {'adj_dealloc': 88, 'mess_dealloc': 106, 'scale_dealloc': 73, 'adj_nomatch': 275, 'mess_nomatch': 36, 'scale_nomatch': 26, 'mess_fetch_adj_partial': 345, 'mess_seen': 203, 'scale_seen': 63}
+
+Stop: model converged
+

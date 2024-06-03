@@ -542,8 +542,7 @@ end
                     mess_dealloc: cover (tag_free);
                     mess_nomatch: cover (~(tag_free) & (allocated_nodeslot != nsb_prefetcher_req.nodeslot));
                     if (~(~trigger_msg_partial_resp & message_fetch_state != 4 & ~message_queue_full)) begin
-                        mess_nopartial: cover (~trigger_msg_partial_resp);
-                        mess_partial: cover (trigger_msg_partial_resp);
+                        mess_seen: cover (1);
                     end
                 end else if(nsb_prefetcher_req.req_opcode == 3) begin: req_scale_write
                     scale_dealloc: cover (tag_free);
@@ -552,8 +551,7 @@ end
                     ~scale_factor_queue_manager.issue_partial_done & 
                     ~scale_factor_queue_full & 
                     scale_factor_queue_manager.fetch_state != 0)) begin
-                        scale_nopartial: cover (~scale_factor_queue_manager.issue_partial_done);
-                        scale_partial: cover (scale_factor_queue_manager.issue_partial_done);
+                        scale_seen: cover (1);
                     end
                 end
             end
