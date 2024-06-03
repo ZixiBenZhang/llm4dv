@@ -112,6 +112,30 @@ module cocotb_ibex(
 
     logic [4:0] prev_rd;
 
+    logic [3:0] cycle_count;
+
+    initial begin 
+      assume(~rst_ni)
+      cycle_count <= 0;
+      op <= 0;
+      funct <= 0;
+      rd <= 0;
+      rs1 <= 0;
+      rs2 <= 0;
+      prev_rd <= 0;
+      prev_op <= 0;
+      prev_funct <= 0;
+    end
+
+    always @(posedge clk_i) begin
+      if (cycle_count < 10)
+          cycle_count <= cycle_count + 1;
+    end
+
+    assume property ( @(posedge clk_i) cycle_count < 5 |-> ~rst_ni );
+    assume property ( @(posedge clk_i) cycle_count > 4 |-> rst_ni );
+
+
     always @(posedge clk_i) begin
       op <= insn[6:0];
       funct <= insn & 'hFE007000;
