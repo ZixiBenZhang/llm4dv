@@ -11,12 +11,17 @@ generating inputs for testing a device). The goal is to generate stimuli to cove
 (i.e. test cases) from a predefined coverage plan with the LLM using as few tokens as possible.
 
 This repository contains a number of designs along with cocotb testbenches to enable research into
-exploring ML techniques for DV. The three designs are:
+exploring ML techniques for DV. The eight designs are:
 
 - stride_detector - A mock design of the core of a prefetcher
 - ibex_decoder - A standalone instantiaton of the decoder from the Ibex RISC-V
   core
 - ibex_cpu - The full Ibex RISC-V core
+- agile_prefetcher/weight_bank - The weight bank of AGILE (has since been renamed [AMPLE](https://github.com/pgimenes/ample))
+- agile_prefetcher/fetch_tag - The fetch tag of AGILE (has since been renamed [AMPLE](https://github.com/pgimenes/ample))
+- async_fifo - An [Asynchronous FIFO](https://github.com/dpretet/async_fifo)
+- sdram_controller - A simple [SDRAM Controller](https://github.com/stffrdhrn/sdram-controller)
+- mips_cpu - A MIPS_CPU core ([nontrivial-mips](https://github.com/trivialmips/nontrivial-mips))
 
 This paper https://arxiv.org/abs/2310.04535 has used the designs from this
 repository.
@@ -81,114 +86,10 @@ The "_Dialogue restarting_" plans are specified in `agent_LLM.py`.
 
 Please refer to `generate_stimulus.py` files for how to create and use the stimulus generation agent.
 
+## Open-source designs used
 
-
-## Repository structure
-
-
-Detailed structure:
-```
-.
-│  csv_helper.py                       # Utils for processing csv experiment logs
-│  flake.loc
-│  flake.nix
-│  global_shared_types.py              # Wrappers of CoverageDatabase and DUTState of the three modules
-│  main.py                             # Testing script
-│  python-requirements.txt
-│  README.md
-│  stimuli_extractor.py                # Extractor that extracts numbers from text response
-│  stimuli_filter.py                   # Filter that filters out invalid numbers
-│
-├─agents                               # Stimulus producing agent, which incorporate all methods of the client side
-│      agents_CLI.py
-│      agent_base.py
-│      agent_fschat.py
-│      agent_IC_dumb.py
-│      agent_ID_dumb.py
-│      agent_LLM.py
-│      agent_random.py
-│      agent_SD_dumb.py
-│    
-├─examples_IC                          # Manually created bin description of Ibex CPU
-│      bins_description.txt
-│    
-├─examples_ID                          # Manually created bin description of Ibex instruction decoder
-│      bins_description.txt
-│      bins_description_succinct.txt
-│      dut_code.txt
-│      tb_code.txt
-│
-├─examples_SD                          # Manually created bin description of stride detector
-│      bins_description.txt
-│      dut_code.txt
-│      tb_code.txt
-│
-├─examples_SD_analogue                 # Manually created task description, which is an analogue of the stride detector
-│      bins_description.txt
-│      dut_code.txt
-│      tb_code.txt
-│
-├─experiment_logs                      # Experiment running logs
-│  ├─logs_ID_gpt
-│  ├─logs_ID_llama2
-│  ├─logs_SD_fixed
-│  └─logs_SD_template
-│
-├─ibex_cpu                             # Ibex CPU module
-│  │  .flake8
-│  │  cocotb_ibex.py
-│  │  cocotb_ibex.sv
-│  │  generate_stimulus.py
-│  │  instructions.py
-│  │  instruction_monitor.py
-│  │  lint.sh
-│  │  Makefile
-│  │  mypy.ini
-│  │  README.md
-│  │  shared_types.py
-│  │  test_prog.bin
-│  │
-│  ├─logs
-│  └─src
-│
-├─ibex_decoder                         # Ibex instruction decoder module
-│  │  generate_stimulus.py
-│  │  ibex_consts.py
-│  │  ibex_decoder.sv
-│  │  ibex_decoder_cocotb.py
-│  │  ibex_decoder_wrap.sv
-│  │  ibex_pkg.sv
-│  │  Makefile
-│  │  shared_types.py
-│  │
-│  └─logs
-│
-├─loggers                              # Logging components of the agent, for logging txt and csv files
-│      logger_base.py
-│      logger_csv.py
-│      logger_txt.py
-│
-├─models                               # LLM components of the agent, for getting natural language responses from LLMs
-│      llm_base.py
-│      llm_gpt.py
-│      llm_llama2.py
-│
-├─prompt_generators                    # Prompting components of the agent, for generating question to the LLMs
-│      prompt_generator_base.py
-│      prompt_generator_fixed_ID.py
-│      prompt_generator_fixed_SD.py
-│      prompt_generator_template.py
-│      prompt_generator_template_IC.py
-│      prompt_generator_template_ID.py
-│      prompt_generator_template_SD.py
-│
-└─stride_detector                      # Stride detector module
-    │  generate_stimulus.py
-    │  Makefile
-    │  README.md
-    │  shared_types.py
-    │  stride_detector.sv
-    │  stride_detector_cocotb.py
-    │
-    └─logs
-```
+| Design | License |
+|--|--|
+| async_fifo [GitHub](https://github.com/dpretet/async_fifo) | All code under `async_fifo/src/` is released under the [MIT License](https://opensource.org/license/mit).|
+| sdram_controller [GitHub](https://github.com/stffrdhrn/sdram-controller) | All code under `sdram_controller/src/` is released under the [BSD License](https://opensource.org/license/bsd-3-clause). |
+| mips_cpu [GitHub](https://github.com/trivialmips/nontrivial-mips)| All code under `mips_cpu/src/` is released under the [MIT License](https://opensource.org/license/mit), with the exception of `mips_cpu/src/utils/fifo_v3.sv`, which is licensed under  [The Solderpad Hardware Licence](https://solderpad.org/licenses/)  (source code from  [GitHub](https://github.com/pulp-platform/ariane)) |
