@@ -194,7 +194,7 @@ async def basic_test(dut):
     from global_shared_types import GlobalCoverageDatabase
 
     # server_port = "5555" 
-    input("Please enter server's port (e.g. 5050, 5555): ")
+    server_port = input("Please enter server's port (e.g. 5050, 5555): ")
 
     while True:
         #dbus

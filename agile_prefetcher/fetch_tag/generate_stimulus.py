@@ -8,6 +8,7 @@ from contextlib import closing
 import sys
 import os
 import numpy as np
+import argparse
 
 directory = os.path.dirname(os.path.abspath("__file__"))
 sys.path.insert(0, os.path.dirname("/".join(directory.split("/")[:-1])))
@@ -86,7 +87,7 @@ def random_experiment():
         stimulus.finish = True
         stimulus_sender.send_stimulus(stimulus)
 
-def main(model_name="meta-llama/llama-2-70b-chat", missed_bin_sampling="RANDOM", best_iter_message_sampling="Recent Responses", dialogue_restarting="rst_plan_Low_Tolerance", buffer_resetting="STABLE", code_summary_type = 0):
+def main(model_name="meta-llama/llama-2-70b-chat", missed_bin_sampling="RANDOM", best_iter_message_sampling="Recent Responses", dialogue_restarting="rst_plan_Low_Tolerance", buffer_resetting="STABLE", code_summary_type = 0, few_shot = 0):
     if(dialogue_restarting == "rst_plan_Normal_Tolerance"):
         dialogue_restarting = rst_plan_Normal_Tolerance
     elif (dialogue_restarting == "rst_plan_Low_Tolerance"):
@@ -116,7 +117,7 @@ def main(model_name="meta-llama/llama-2-70b-chat", missed_bin_sampling="RANDOM",
     stimulus_generator = OpenRouter(
         system_prompt=prompt_generator.generate_system_prompt(),
         best_iter_buffer_resetting=buffer_resetting,
-        compress_msg_algo=best_iter_message_sampling,
+        compress_msg_algo=best_iter_message_sampling.replace("_", " "),
         prioritise_harder_bins=False,
         model_name=model_name
     )
@@ -149,13 +150,13 @@ def main(model_name="meta-llama/llama-2-70b-chat", missed_bin_sampling="RANDOM",
     elif(missed_bin_sampling == "MIXED"):
         prefix += "3_"
 
-    if(best_iter_message_sampling == "Recent Responses"):
+    if(best_iter_message_sampling == "Recent_Responses"):
         prefix += "I_"
-    elif(best_iter_message_sampling == "Successful Responses"):
+    elif(best_iter_message_sampling == "Successful_Responses"):
         prefix += "II_"
-    elif(best_iter_message_sampling == "Mixed Recent and Successful Responses"):
+    elif(best_iter_message_sampling == "Mixed Recent_and_Successful Responses"):
         prefix += "III_"
-    elif(best_iter_message_sampling == "Successful Difficult Responses"):
+    elif(best_iter_message_sampling == "Successful_Difficult_Responses"):
         prefix += "IV_"
 
     if(dialogue_restarting == rst_plan_Normal_Tolerance):
@@ -237,5 +238,18 @@ def main(model_name="meta-llama/llama-2-70b-chat", missed_bin_sampling="RANDOM",
 
 
 if __name__ == "__main__":
-    main(sys.argv[1],sys.argv[2],sys.argv[3].replace("_", " "),sys.argv[4],sys.argv[5],sys.argv[6])
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument("--model_name", type=str, default="meta-llama/llama-2-70b-chat")
+    parser.add_argument("--missed_bin_sampling", type=str, default="RANDOM")
+    parser.add_argument("--best_iter_message_sampling", type=str, default="Recent_Responses")
+    parser.add_argument("--dialogue_restarting", type=str, default="rst_plan_Low_Tolerance")
+    parser.add_argument("--buffer_resetting", type=str, default="STABLE")
+    parser.add_argument("--code_summary_type", type=int, default=0)
+    parser.add_argument("--few_shot", type=int, default=0)
+    args = parser.parse_args()
+    main(args.model_name, args.missed_bin_sampling, args.best_iter_message_sampling, args.dialogue_restarting, args.buffer_resetting, args.code_summary_type, args.few_shot)
+    # Example: python generate_stimulus.py --model_name meta-llama/llama-2-70b-chat --missed_bin_sampling MIXED --best_iter_message_sampling Successful_Responses --dialogue_restarting rst_plan_Low_Tolerance --buffer_resetting KEEP --code_summary_type 0 --few_shot 0
+
+
+    # If you want to run CRT
     # random_experiment()
