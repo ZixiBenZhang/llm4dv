@@ -181,14 +181,8 @@ Please refer to `generate_stimulus.py` files for how to create and use the stimu
 
 ## Open-source designs used
 
-  
-
 | Design | License |
-
 |--|--|
-
 | async_fifo [GitHub](https://github.com/dpretet/async_fifo) | All code under `async_fifo/src/` is released under the [MIT License](https://opensource.org/license/mit).|
-
 | sdram_controller [GitHub](https://github.com/stffrdhrn/sdram-controller) | All code under `sdram_controller/src/` is released under the [BSD License](https://opensource.org/license/bsd-3-clause). |
-
 | mips_cpu [GitHub](https://github.com/trivialmips/nontrivial-mips)| All code under `mips_cpu/src/` is released under the [MIT License](https://opensource.org/license/mit), with the exception of `mips_cpu/src/utils/fifo_v3.sv`, which is licensed under [The Solderpad Hardware Licence](https://solderpad.org/licenses/) (source code from [GitHub](https://github.com/pulp-platform/ariane)) |
