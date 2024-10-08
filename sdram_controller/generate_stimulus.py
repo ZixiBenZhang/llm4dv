@@ -11,6 +11,8 @@ import numpy as np
 from pathlib import Path
 import argparse
 
+from models.llm_azure import AzureOpenai
+
 directory = os.path.dirname(os.path.abspath("__file__"))
 sys.path.insert(0, os.path.dirname(directory))
 # print(sys.path)
@@ -21,7 +23,6 @@ from agents.agent_random import *
 from agents.agent_LLM import *
 from prompt_generators.prompt_generator_template_SDRAM import *
 from models.llm_gpt import ChatGPT
-from models.llm_claude import Claude
 from models.llm_openrouter import OpenRouter
 from loggers.logger_csv import CSVLogger
 from loggers.logger_txt import TXTLogger
@@ -118,7 +119,7 @@ def main(model_name="meta-llama/llama-2-70b-chat", missed_bin_sampling="RANDOM",
         code_summary_type=int(code_summary_type)
     )
     
-    stimulus_generator = OpenRouter(
+    stimulus_generator = AzureOpenai(
         system_prompt=prompt_generator.generate_system_prompt(),
         best_iter_buffer_resetting=buffer_resetting,
         compress_msg_algo=best_iter_message_sampling.replace("_", " "),

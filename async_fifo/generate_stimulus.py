@@ -11,6 +11,8 @@ import numpy as np
 from pathlib import Path
 import argparse
 
+from models.llm_azure import AzureOpenai
+
 directory = os.path.dirname(os.path.abspath("__file__"))
 sys.path.insert(0, os.path.dirname(directory))
 # print(sys.path)
@@ -115,7 +117,7 @@ def main(model_name="meta-llama/llama-2-70b-chat", missed_bin_sampling="RANDOM",
 
     # stimulus_generator = Llama2(system_prompt=prompt_generator.generate_system_prompt())
     # print('Llama2 successfully built')
-    stimulus_generator = OpenRouter(
+    stimulus_generator = AzureOpenai(
         system_prompt=prompt_generator.generate_system_prompt(),
         best_iter_buffer_resetting=buffer_resetting,
         compress_msg_algo=best_iter_message_sampling.replace("_", " "),
